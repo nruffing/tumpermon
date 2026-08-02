@@ -15,6 +15,9 @@ ifdef GBDK_DEBUG
 	LCCFLAGS += -debug -v
 endif
 
+# Make the ROM CGB compatible (but not exclusive)
+LCCFLAGS += -Wm-yc
+
 
 # You can set the name of the .gb ROM file here
 PROJECTNAME    = Tumpermon

@@ -6,6 +6,7 @@
 
 #include "utils/util.h"
 #include "utils/apa_util.h"
+#include "colors.h"
 
 
 void splash(void)
@@ -13,14 +14,18 @@ void splash(void)
     do_apa_mode();
 
     const palette_color_t splash_palette[4] = {
-        RGB(31, 31, 31), // WHITE  -> white
-        RGB(31, 0,  0),  // LTGREY -> red
-        RGB(0,  0,  31), // DKGREY -> blue
-        RGB(0,  0,  0),  // BLACK  -> black
+        COLOR_WHITE, // WHITE  -> white
+        COLOR_LIGHTGRAY,   // LTGREY -> red
+        COLOR_ORANGE,  // DKGREY -> blue
+        COLOR_BLACK, // BLACK  -> black
     };
     update_color_pallete(splash_palette);
 
-    color(BLACK, WHITE, SOLID);
+    // foreground = COLOR_ORANGE, background = COLOR_BLACK
+    color(DKGREY, BLACK, SOLID);
+
+    // set background to COLOR_BLACK with COLOR_ORANGE border
+    box(0, 0, (uint8_t)(GRAPHICS_WIDTH - 1), (uint8_t)(GRAPHICS_HEIGHT - 1), M_FILL);
 
     const char *title = "TUMPERMON";
     gotogxy(get_centered_x(title), 4);
