@@ -1,30 +1,20 @@
 #include "splash.h"
 
-#include <stdbool.h>
 #include <gb/gb.h>
 #include <gb/cgb.h>
 #include <gb/drawing.h>
 
+#include "joypad.h"
 #include "utils/util.h"
 #include "utils/apa_util.h"
 #include "colors.h"
 
-uint8_t joypad_current=0, joypad_previous=0;
-
 void wait_for_start(void) {
-    while(1) {
-        joypad_previous = joypad_current;
-        joypad_current = joypad();
-
-        // check if button is pressed now and was not before (i.e. button down edge-detection)
-        bool is_pressed = joypad_current & J_START;
-        if (is_pressed) {
-            bool was_pressed = joypad_previous & J_START;
-            if (!was_pressed) {
-                break;
-            }
+    while (1) {
+        JoypadState state = process_joypad();
+        if (state.start.is_just_pressed) {
+            break;
         }
-
         vsync(); // wait for next frame
     }
 }
