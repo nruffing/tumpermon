@@ -15,3 +15,12 @@ void update_color_pallete(const palette_color_t *rgb_data)
         BGP_REG = DMG_PALETTE(DMG_WHITE, DMG_LITE_GRAY, DMG_DARK_GRAY, DMG_BLACK);
     }
 }
+
+void reset_color_pallete(void)
+{
+    if (is_cgb()) {
+        set_default_palette();
+    } else {
+        BGP_REG = DMG_PALETTE(DMG_WHITE, DMG_LITE_GRAY, DMG_DARK_GRAY, DMG_BLACK);
+    }
+}

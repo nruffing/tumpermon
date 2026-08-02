@@ -53,5 +53,8 @@ void splash(void)
     print_centered(press_start, 13);
 
     wait_for_start();
+
+    // clean up after ourselves
     end_apa_mode();
+    reset_color_pallete();
 }
