@@ -59,3 +59,45 @@ open -a Emulicious Tumpermon.gb
 
 or drag the file onto the Emulicious app / window.
 
+## Flashing to a real cartridge
+
+To play `Tumpermon.gb` on real Game Boy hardware, flash it to a flash
+cartridge using a [GBxCart RW](https://www.gbxcart.com/) device:
+
+1. **Install [FlashGBX](https://www.gbxcart.com/)**, the flashing software
+   for GBxCart RW (Windows, Mac, and Linux). On Windows you'll also need the
+   CH340/CH341 USB driver, linked from the same site.
+
+   On macOS, since FlashGBX isn't notarized/signed, Gatekeeper will block it
+   from opening after you drag it to `/Applications`. Remove the quarantine
+   attribute to allow it to run:
+
+   ```
+   xattr -dr com.apple.quarantine /Applications/FlashGBX.app
+   ```
+
+2. **Connect the GBxCart RW device** to your computer via USB, and insert
+   your flash cartridge into it.
+
+3. **Open FlashGBX** and select the ROM file to flash — point it at the
+   `Tumpermon.gb` produced by `make`/`compile.bat`.
+
+4. **Select your cartridge/mapper type** if FlashGBX doesn't auto-detect it
+   (this depends on which flash cart you're using).
+
+5. **Write the ROM**, then let FlashGBX verify the write completed
+   successfully.
+
+6. Insert the cartridge into a real Game Boy / Game Boy Color and power on.
+
+For cart-specific mapper settings or troubleshooting, gbxcart.com points to
+their Discord server for support.
+
+This was confirmed to work with
+ * [FlashGBX v5.0.1](https://github.com/lesserkuma/FlashGBX/releases/tag/5.0.1)
+ * [GBxCart RW v1.4a/b/c](https://retrogamerepairshop.com/collections/insidegadgets/products/gbxcart-rw-gameboy-gbc-gba-cart-reader-writer-flasher)
+ * Firmware R42+L12 (2024-06-28T14:25:31-07:00)
+   * FlashGBX will prompt to update firmware if there is a new version available.
+ * Game Boy 2MB, 32KB FRAM MBC3 with RTC Flash Cartridge by HDR
+ * on macOS 26.5.2
+ * ModRetro Chromatic [1st Edition] (firmware updated to v4.2)
