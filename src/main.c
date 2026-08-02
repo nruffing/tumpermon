@@ -3,7 +3,6 @@
 
 #include "splash.h"
 
-
 void main(void)
 {
     splash();
