@@ -55,7 +55,7 @@ main.c (process_frame)
 - **`utils/`** — `util.c` (CGB detection, palette reset, VRAM/screen reset),
   `apa_util.c` (APA mode enter/exit, centered-text helpers).
 
-## Conventions / decisions made this session
+## Conventions / decisions
 
 - **Fixed-point position/velocity**, not floats (no FPU on this CPU).
   `FIXED_POINT_POSITION_LENGTH = 4` (16 units/pixel). Position is `uint16_t`
@@ -83,7 +83,7 @@ main.c (process_frame)
 - `(void)` explicitly on zero-arg function signatures (C, not C++, semantics —
   empty `()` means "unspecified args," not "no args").
 
-## Known gaps / next steps (as of this session)
+## Known gaps / next steps
 
 - **Player sprite is still placeholder art** — a single solid 8x8 tile, not a
   real metasprite. Discussed metasprite structure (`metasprite_t`, frames,

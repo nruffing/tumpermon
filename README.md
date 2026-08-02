@@ -1,8 +1,13 @@
+# TUMPERMON
 
-An minimal template project with a Makefile that only compiles files in the same directory
+A Game Boy homebrew game built with [GBDK-2020](https://github.com/gbdk-2020/gbdk-2020),
+started from GBDK's `template-minimal` example. Currently has a splash screen and a
+player character that can be moved around with the D-pad.
 
-The Makefile will automatically detect and compile new source files as long 
-as they are placed in the same directory as the Makefile
+The Makefile automatically detects and compiles new source files as long as they're
+placed in `src/` (or one subfolder deep, e.g. `src/utils/`).
+
+See `CLAUDE.md` for architecture notes, coding conventions, and known gaps.
 
 ## Setup
 
