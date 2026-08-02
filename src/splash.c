@@ -21,6 +21,8 @@ void splash(void)
     update_color_pallete(splash_palette);
 
     color(BLACK, WHITE, SOLID);
-    gotogxy(5, 4);
-    gprint("TUMPERMON");
+
+    const char *title = "TUMPERMON";
+    gotogxy(get_centered_x(title), 4);
+    gprint((char *)title);
 }

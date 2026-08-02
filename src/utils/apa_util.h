@@ -1,6 +1,9 @@
 #ifndef APA_UTIL_H
 #define APA_UTIL_H
 
+#include <stdint.h>
+
 void do_apa_mode(void);
+uint8_t get_centered_x(const char *str);
 
 #endif
