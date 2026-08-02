@@ -1,6 +1,7 @@
 #include "util.h"
 
 #include <gb/gb.h>
+#include <gbdk/console.h>
 
 bool is_cgb(void)
 {
@@ -23,4 +24,19 @@ void reset_color_pallete(void)
     } else {
         BGP_REG = DMG_PALETTE(DMG_WHITE, DMG_LITE_GRAY, DMG_DARK_GRAY, DMG_BLACK);
     }
+}
+
+void reset_screen(void)
+{
+    DISPLAY_OFF;
+    cls();
+
+    // Blank out VRAM tile pattern data left behind by APA drawing —
+    // cls() only resets the tile map, not the underlying tile patterns.
+    const uint8_t blank_tile[16] = {0};
+    for (uint16_t i = 0; i < 256; i++) {
+        set_bkg_data((uint8_t)i, 1, blank_tile);
+    }
+
+    DISPLAY_ON;
 }

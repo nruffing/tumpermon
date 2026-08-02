@@ -2,10 +2,12 @@
 #include <stdint.h>
 
 #include "splash.h"
+#include "utils/util.h"
 
 void main(void)
 {
     splash();
+    reset_screen();
 
     // Loop forever
     while(1) {
