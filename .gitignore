@@ -1,0 +1,11 @@
+*.o
+*.lst
+*.map
+*.gb
+*.ihx
+*.sym
+*.cdb
+*.adb
+*.asm
+*.noi
+*.rst
