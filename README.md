@@ -101,3 +101,12 @@ This was confirmed to work with
  * Game Boy 2MB, 32KB FRAM MBC3 with RTC Flash Cartridge by HDR
  * on macOS 26.5.2
  * ModRetro Chromatic [1st Edition] (firmware updated to v4.2)
+
+## Creating Sprites
+
+Sprites were created using [Game Boy Tile Tool](https://nathanheffley.itch.io/game-boy-tile-tool)
+
+Will need to run the following on macOS after install to Applications directory.
+```
+xattr -dr com.apple.quarantine "/Applications/Gameboy Tile Tool.app"
+```
