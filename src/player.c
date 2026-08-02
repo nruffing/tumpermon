@@ -2,7 +2,7 @@
 
 #include <gb/gb.h>
 
-#include "position.h"
+#include "kinematics.h"
 
 
 const uint8_t player_sprite_tile[16] = {

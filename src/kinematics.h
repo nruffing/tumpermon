@@ -1,5 +1,5 @@
-#ifndef POSITION_H
-#define POSITION_H
+#ifndef KINEMATICS_H
+#define KINEMATICS_H
 
 #include <stdint.h>
 

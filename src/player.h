@@ -1,7 +1,7 @@
 #ifndef PLAYER_H
 #define PLAYER_H
 
-#include "position.h"
+#include "kinematics.h"
 
 typedef struct Player {
     Position position;
