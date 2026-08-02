@@ -1,5 +1,5 @@
 #
-# Simple Makefile that compiles all .c and .s files in the same folder
+# Simple Makefile that compiles all .c and .s files in the src/ folder
 #
 
 # If you move this project you can change the directory 
@@ -20,8 +20,8 @@ endif
 PROJECTNAME    = Tumpermon
 
 BINS	    = $(PROJECTNAME).gb
-CSOURCES   := $(wildcard *.c)
-ASMSOURCES := $(wildcard *.s)
+CSOURCES   := $(wildcard src/*.c)
+ASMSOURCES := $(wildcard src/*.s)
 
 all:	$(BINS)
 
