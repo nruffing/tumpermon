@@ -20,8 +20,8 @@ endif
 PROJECTNAME    = Tumpermon
 
 BINS	    = $(PROJECTNAME).gb
-CSOURCES   := $(wildcard src/*.c)
-ASMSOURCES := $(wildcard src/*.s)
+CSOURCES   := $(wildcard src/*.c src/*/*.c)
+ASMSOURCES := $(wildcard src/*.s src/*/*.s)
 
 all:	$(BINS)
 

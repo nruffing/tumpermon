@@ -1,12 +1,15 @@
 #include <gb/gb.h>
 #include <stdint.h>
 
+#include "splash.h"
+
 
 void main(void)
 {
+    splash();
+
     // Loop forever
     while(1) {
-
 
 		// Game main loop processing goes here
 
