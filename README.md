@@ -117,3 +117,67 @@ After installing `Game Boy Tile Tool` you need to run the following on macOS aft
 ```
 xattr -dr com.apple.quarantine "/Applications/Gameboy Tile Tool.app"
 ```
+
+## Adding a New Metasprite
+
+Multi-tile sprites (anything bigger than a single 8x8/8x16 tile — e.g. the
+player) are built as GBDK metasprites, generated from a PNG via `png2asset`.
+Single-tile entities (e.g. a simple projectile) don't need any of this —
+just use `move_sprite_to_position` from `kinematics.h` directly.
+
+1. **Create an indexed-color PNG** and drop it in `res/`, e.g. `res/enemy.png`.
+   - Must be **indexed/paletted** (not RGB/RGBA) — export as such from your
+     sprite tool. `gb-sprite` and Game Boy Tile Tool (above) both do this.
+   - Dimensions must be a multiple of 8x8 (e.g. 16x16 for a 2x2-tile sprite).
+   - For multiple animation frames in one file, stack them vertically at a
+     consistent frame height and pass `-sh <frame height>` (see step 2) —
+     each frame becomes an entry in the generated `..._metasprites[]` array.
+   - ≤4 colors (2bpp) keeps it on a single CGB sprite palette; more needs
+     `-max_palettes`/multiple `set_sprite_palette` slots.
+
+2. **The Makefile picks it up automatically** — every `.png` in `res/` gets
+   converted by `png2asset` into `obj/res/<name>.c`/`.h` as part of `make`
+   (see the `$(RESOBJDIR)/%.c` rule). No Makefile changes needed for a new
+   sprite. If your sprite isn't 8x8-tile hardware sprites (i.e. wider or
+   using 8x16 mode), adjust the `png2asset` flags in that rule — currently
+   `-spr8x8 -noflip`, matching the player's 16x16 (2x2 tile) art.
+
+3. **`#include <res/<name>.h>`** in the `.c` file that uses it. This gives
+   you (using `enemy.png` as an example):
+   ```c
+   enemy_TILE_COUNT             // number of 8x8 tiles
+   enemy_tiles[]                // raw tile pixel data, for set_sprite_data
+   enemy_palettes[]             // palette_color_t[4], for set_sprite_palette
+   enemy_metasprites[N]         // one metasprite_t* per animation frame
+   ```
+
+4. **Reserve VRAM tile indices and an OAM sprite slot range** for it in
+   `sprites.h`, following the `PLAYER_SPRITE_*` pattern — each metasprite
+   needs `..._TILE_COUNT` contiguous VRAM tile slots and that many
+   contiguous OAM hardware sprite slots (Game Boy has 40 total, shared
+   across everything on screen — budget accordingly as more sprites are
+   added).
+
+5. **Load tile data + palette once**, e.g. in `initialize_sprites()` in
+   `main.c`:
+   ```c
+   set_sprite_data(ENEMY_SPRITE_TILE_START_INDEX, enemy_TILE_COUNT, enemy_tiles);
+   update_sprite_pallete(enemy_palettes);
+   ```
+
+6. **Build a `Metasprite` value** (see `sprites.h`) pointing at the frame you
+   want, and move it with `move_metasprite_to_position` from `kinematics.c`:
+   ```c
+   Metasprite metasprite = {
+       .metasprite = enemy_metasprites[0],
+       .sprite_num = ENEMY_SPRITE_SLOT,
+       .start_tile_index = ENEMY_SPRITE_TILE_START_INDEX,
+   };
+   move_metasprite_to_position(metasprite, position);
+   ```
+   For animation, swap which `enemy_metasprites[i]` the `Metasprite` points
+   at based on a frame counter — the tile data stays loaded, only the frame
+   layout pointer changes.
+
+7. **Rebuild** (`make`) — `obj/res/` is regenerated from the PNGs each time
+   and is gitignored, so nothing under it needs to be committed.

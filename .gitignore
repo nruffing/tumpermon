@@ -9,3 +9,4 @@
 *.asm
 *.noi
 *.rst
+obj/

@@ -8,7 +8,8 @@ ifndef GBDK_HOME
 	GBDK_HOME = ../../
 endif
 
-LCC = $(GBDK_HOME)/bin/lcc 
+LCC       = $(GBDK_HOME)/bin/lcc
+PNG2ASSET = $(GBDK_HOME)/bin/png2asset
 
 # GBDK_DEBUG = ON
 ifdef GBDK_DEBUG
@@ -26,16 +27,32 @@ BINS	    = $(PROJECTNAME).gb
 CSOURCES   := $(wildcard src/*.c src/*/*.c)
 ASMSOURCES := $(wildcard src/*.s src/*/*.s)
 
+# Metasprite pngs in res/ -> generated .c/.h in obj/res/
+# (single-frame pngs use their own width/height automatically, so no -sw/-sh needed)
+RESDIR    = res
+RESOBJDIR = obj/res
+METAPNGS  := $(wildcard $(RESDIR)/*.png)
+METASRCS  := $(patsubst $(RESDIR)/%.png,$(RESOBJDIR)/%.c,$(METAPNGS))
+
+CSOURCES += $(METASRCS)
+CFLAGS   += -Iobj
+
 all:	$(BINS)
 
 compile.bat: Makefile
 	@echo "REM Automatically generated from Makefile" > compile.bat
 	@make -sn | sed y/\\//\\\\/ | sed s/mkdir\ \-p/mkdir/ | grep -v make >> compile.bat
 
+# Convert metasprite pngs to C source before they're needed as CSOURCES
+$(RESOBJDIR)/%.c:	$(RESDIR)/%.png
+	@mkdir -p $(RESOBJDIR)
+	$(PNG2ASSET) $< -spr8x8 -noflip -c $@
+
 # Compile and link all source files in a single call to LCC
 $(BINS):	$(CSOURCES) $(ASMSOURCES)
-	$(LCC) $(LCCFLAGS) -o $@ $(CSOURCES) $(ASMSOURCES)
+	$(LCC) $(LCCFLAGS) $(CFLAGS) -o $@ $(CSOURCES) $(ASMSOURCES)
 
 clean:
 	rm -f *.o *.lst *.map *.gb *.ihx *.sym *.cdb *.adb *.asm *.noi *.rst
+	rm -rf $(RESOBJDIR)
 

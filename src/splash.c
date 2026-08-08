@@ -24,10 +24,10 @@ void splash(void)
     do_apa_mode();
 
     const palette_color_t splash_palette[4] = {
-        COLOR_WHITE,     // WHITE  -> white
-        COLOR_LIGHTGRAY, // LTGREY -> red
-        COLOR_ORANGE,    // DKGREY -> blue
-        COLOR_BLACK,     // BLACK  -> black
+        COLOR_WHITE,     // WHITE
+        COLOR_LIGHTGRAY, // LTGREY
+        COLOR_ORANGE,    // DKGREY
+        COLOR_BLACK,     // BLACK
     };
     update_color_pallete(splash_palette);
 
