@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  # Pinned so CI doesn't silently break on an upstream GBDK-2020 release.
+  # Bump deliberately (and re-test locally) when moving to a newer toolchain.
+  GBDK_VERSION: "4.5.0"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache GBDK-2020 toolchain
+        id: cache-gbdk
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/gbdk
+          key: gbdk-linux64-${{ env.GBDK_VERSION }}
+
+      - name: Download GBDK-2020
+        if: steps.cache-gbdk.outputs.cache-hit != 'true'
+        run: |
+          curl -sL "https://github.com/gbdk-2020/gbdk-2020/releases/download/${GBDK_VERSION}/gbdk-linux64.tar.gz" \
+            -o "${{ runner.temp }}/gbdk.tar.gz"
+          tar xzf "${{ runner.temp }}/gbdk.tar.gz" -C "${{ runner.temp }}"
+
+      - name: Build
+        run: make GBDK_HOME="${{ runner.temp }}/gbdk"
+
+      - name: Upload ROM
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tumpermon.gb
+          path: Tumpermon.gb
+
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check formatting
+        run: |
+          find src -name "*.c" -o -name "*.h" | xargs clang-format --dry-run --Werror
