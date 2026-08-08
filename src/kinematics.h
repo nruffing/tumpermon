@@ -32,7 +32,7 @@ typedef struct Velocity {
 } Velocity;
 
 // For entities that are a single hardware sprite (one 8x8/8x16 tile) — e.g.
-// a simple projectile. This should not be used for sprites of more than a 
+// a simple projectile. This should not be used for sprites of more than a
 // single tile. For multiple-tile sprites use a metasprite.
 void move_sprite_to_position(uint8_t sprite_num, Position position);
 

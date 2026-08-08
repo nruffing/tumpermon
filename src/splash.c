@@ -1,15 +1,16 @@
 #include "splash.h"
 
-#include <gb/gb.h>
 #include <gb/cgb.h>
 #include <gb/drawing.h>
+#include <gb/gb.h>
 
-#include "joypad.h"
-#include "utils/util.h"
-#include "utils/apa_util.h"
 #include "colors.h"
+#include "joypad.h"
+#include "utils/apa_util.h"
+#include "utils/util.h"
 
-void wait_for_start(void) {
+void wait_for_start(void)
+{
     while (1) {
         JoypadState state = process_joypad();
         if (state.start.is_just_pressed) {

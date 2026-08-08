@@ -34,6 +34,15 @@ See `CLAUDE.md` for architecture notes, coding conventions, and known gaps.
    (`.vscode/c_cpp_properties.json`) will pick up GBDK's headers
    automatically, assuming the same two-directories-deep layout from step 2.
 
+5. **(Optional) Install `clang-format`** for code formatting, e.g.
+   `brew install clang-format` on macOS. Formatting follows `.clang-format`
+   at the repo root; with the recommended VS Code extensions installed
+   (step 4), `.vscode/settings.json` formats C files on save automatically.
+   To format everything from the command line:
+   ```
+   find src -name "*.c" -o -name "*.h" | xargs clang-format -i
+   ```
+
 ## Building
 
 The Makefile assumes GBDK is installed two directories up (`../../`). If your

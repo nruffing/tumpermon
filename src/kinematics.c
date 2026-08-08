@@ -1,9 +1,8 @@
 #include "kinematics.h"
 
-#include <stdbool.h>
-#include <gb/metasprites.h>
 #include <gb/gb.h>
-
+#include <gb/metasprites.h>
+#include <stdbool.h>
 
 static uint8_t fixed_point_to_pixel(uint16_t value)
 {
@@ -15,8 +14,7 @@ void move_sprite_to_position(uint8_t sprite_num, Position position)
     move_sprite(
         sprite_num,
         fixed_point_to_pixel(position.x) + SPRITE_X_OFFSET,
-        fixed_point_to_pixel(position.y) + SPRITE_Y_OFFSET
-    );
+        fixed_point_to_pixel(position.y) + SPRITE_Y_OFFSET);
 }
 
 void move_metasprite_to_position(Metasprite metasprite, Position position)
@@ -27,8 +25,7 @@ void move_metasprite_to_position(Metasprite metasprite, Position position)
         metasprite.base_props,
         metasprite.sprite_num,
         fixed_point_to_pixel(position.x) + SPRITE_X_OFFSET,
-        fixed_point_to_pixel(position.y) + SPRITE_Y_OFFSET
-    );
+        fixed_point_to_pixel(position.y) + SPRITE_Y_OFFSET);
 
     // Hide any OAM slots reserved for this metasprite that this frame didn't
     // use (e.g. an animation frame with fewer sprites than a previous one).
@@ -36,8 +33,7 @@ void move_metasprite_to_position(Metasprite metasprite, Position position)
     // + max_sprite_count) so it can never reach into another entity's slots.
     hide_sprites_range(
         metasprite.sprite_num + sprites_used,
-        metasprite.sprite_num + metasprite.max_sprite_count
-    );
+        metasprite.sprite_num + metasprite.max_sprite_count);
 }
 
 Velocity compute_velocity_from_joypad(JoypadState state)

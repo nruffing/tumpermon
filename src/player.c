@@ -6,7 +6,6 @@
 
 #include "kinematics.h"
 
-
 Player initialize_player(Position position, Metasprite metasprite)
 {
     Player player = { .metasprite = metasprite, .position = position, .direction = DIRECTION_DOWN };

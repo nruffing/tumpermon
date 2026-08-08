@@ -15,7 +15,7 @@ void reset_to_dmg_color_pallete(void)
 
 void update_color_pallete(const palette_color_t *rgb_data)
 {
-    if (is_cgb()) {        
+    if (is_cgb()) {
         set_bkg_palette(BKGF_CGB_PAL0, 1, rgb_data);
     } else {
         reset_to_dmg_color_pallete();
@@ -47,7 +47,7 @@ void reset_screen(void)
 
     // Blank out VRAM tile pattern data left behind by APA drawing —
     // cls() only resets the tile map, not the underlying tile patterns.
-    const uint8_t blank_tile[16] = {0};
+    const uint8_t blank_tile[16] = { 0 };
     for (uint16_t i = 0; i < 256; i++) {
         set_bkg_data((uint8_t)i, 1, blank_tile);
     }

@@ -20,7 +20,8 @@ void initialize_player_sprite(void)
 void initialize_sprites(void)
 {
     HIDE_SPRITES; // temporarily turn off the sprites layer
-    SPRITES_8x8; // sprites can be 8x8 or 8x16 so need to ensure sprite size register is initialized correctly
+    SPRITES_8x8; // sprites can be 8x8 or 8x16 so need to ensure sprite size register is initialized
+                 // correctly
 
     initialize_player_sprite();
 
@@ -58,11 +59,11 @@ void main(void)
     Player player = create_player();
 
     // Loop forever
-    while(1) {
-		// Game main loop processing goes here
+    while (1) {
+        // Game main loop processing goes here
         process_frame(&player);
 
-		// Done processing, yield CPU and wait for start of next frame
+        // Done processing, yield CPU and wait for start of next frame
         vsync();
     }
 }

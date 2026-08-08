@@ -1,0 +1,23 @@
+BasedOnStyle: LLVM
+IndentWidth: 4
+PointerAlignment: Right
+ColumnLimit: 100
+SortIncludes: CaseSensitive
+AllowShortFunctionsOnASingleLine: None
+Cpp11BracedListStyle: false
+BinPackArguments: false
+BinPackParameters: false
+AlignAfterOpenBracket: AlwaysBreak
+AllowAllArgumentsOnNextLine: false
+AllowAllParametersOfDeclarationOnNextLine: false
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterFunction: true
+  AfterControlStatement: Never
+  AfterStruct: false
+  AfterEnum: false
+  AfterUnion: false
+  BeforeElse: false
+  BeforeWhile: false
+  IndentBraces: false
+  SplitEmptyFunction: true
