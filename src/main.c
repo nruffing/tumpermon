@@ -31,13 +31,7 @@ void initialize_sprites(void)
 Player create_player(void)
 {
     Position player_initial_position = { .x = 1216, .y = 1088 };
-    Metasprite metasprite = {
-        .metasprite = player_metasprites[0],
-        .sprite_num = PLAYER_SPRITE_SLOT,
-        .start_tile_index = PLAYER_SPRITE_TILE_START_INDEX,
-        .base_props = DEFAULT_METASPRITE_BASE_PROP,
-        .max_sprite_count = PLAYER_SPRITE_MAX_COUNT,
-    };
+    AnimatedMetasprite metasprite = create_player_metasprite();
     Player player = initialize_player(player_initial_position, metasprite);
     return player;
 }

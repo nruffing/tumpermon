@@ -40,12 +40,20 @@ main.c (process_frame)
 - **`kinematics.{c,h}`** — generic, reusable motion primitives: `Position`,
   `Velocity`, `Direction`, fixed-point conversion, `move_sprite_to_position`
   (single hardware sprite), `move_metasprite_to_position` (multi-sprite
-  metasprite). Deliberately knows nothing about `Player` — intended to be
-  reused for any future entity (enemies, projectiles, etc). Both `move_*`
-  functions are entity-agnostic: they take a `Metasprite`/sprite number and
-  `Position` and know nothing about which entity owns them, so they can't
-  accidentally assume they're the only entity in the game (see
-  `move_metasprite_to_position`'s `hide_sprites_range` note below).
+  metasprite, one fixed frame), `move_animated_metasprite_to_position`
+  (multi-sprite metasprite, frame picked by `Direction`). Deliberately knows
+  nothing about `Player` — intended to be reused for any future entity
+  (enemies, projectiles, etc). All three `move_*` functions are
+  entity-agnostic: they take a `Metasprite`/`AnimatedMetasprite`/sprite
+  number and `Position` (plus `Direction` for the animated one) and know
+  nothing about which entity owns them, so they can't accidentally assume
+  they're the only entity in the game (see `move_metasprite_to_position`'s
+  `hide_sprites_range` note below). Both metasprite variants funnel through
+  a shared `static` helper, `move_metasprite_ref`, that does the actual
+  `move_metasprite_ex`/`move_metasprite_flipx` call (picking flip based on
+  `MetaspriteRef.flip_x`) and the `hide_sprites_range` cleanup — added so
+  direction-facing's mirroring didn't need duplicating between the two
+  callers.
 - **`joypad.{c,h}`** — input layer only. `JoypadState`/`InputState` describe raw
   button state (`is_pressed`, `is_just_pressed` — edge-detected via a `static`
   previous-frame value inside `process_joypad`, shared correctly across all
@@ -53,16 +61,18 @@ main.c (process_frame)
 - **`player.{c,h}`** — the only module that knows about `Player`. `apply_velocity`
   mutates position/direction only (no hardware calls); `update_player_sprite` is
   a separate step that pushes state to the sprite (via
-  `move_metasprite_to_position`). Kept separate on purpose — when collision
+  `move_animated_metasprite_to_position`, passing `player->direction` so the
+  right facing renders). Kept separate on purpose — when collision
   detection is added, it belongs *between* these two calls (resolve collision
   against the candidate position before committing state, then sync the sprite
-  once) rather than mutate-then-revert.
+  once) rather than mutate-then-revert. Also defines `create_player_metasprite`
+  (see "Metasprites" below), which builds the player's `AnimatedMetasprite`
+  once at startup.
 - **`sprites.{h}`** — VRAM tile index / OAM slot constants (`PLAYER_SPRITE_SLOT`,
   `PLAYER_SPRITE_TILE_START_INDEX`, `PLAYER_SPRITE_MAX_COUNT`), kept separate
   from `.c` files so slot/tile assignments across entities are easy to see as
-  more sprites are added. Also defines the `Metasprite` struct — a pointer to
-  a generated `metasprite_t` frame plus the bookkeeping needed to draw and
-  clean up after it (see "Metasprites" below).
+  more sprites are added. Also defines the metasprite type family — see
+  "Metasprites" below.
 - **`colors.h`** — named CGB RGB555 palette constants (`RGB()`/`RGB8()` from
   `gb/cgb.h`).
 - **`splash.c`** — title screen, drawn in APA (`gb/drawing.h`) mode. Leaves APA
@@ -71,7 +81,9 @@ main.c (process_frame)
   resets the tile *map*, not the tile pattern data APA drew into, and leaving
   that stale data caused visible corruption (vertical bars) after the splash.
 - **`utils/`** — `util.c` (CGB detection, background/sprite palette load+reset,
-  VRAM/screen reset), `apa_util.c` (APA mode enter/exit, centered-text helpers).
+  VRAM/screen reset), `apa_util.c` (APA mode enter/exit, centered-text helpers),
+  `metasprite_util.c` (`pad_metasprite_animation_frames`, see "Metasprites"
+  below).
 
 ## Metasprites
 
@@ -83,19 +95,66 @@ pieces:
 - **`res/*.png` → `obj/res/*.c`/`.h`**: generated per-asset symbols
   (`<name>_tiles`, `<name>_palettes`, `<name>_metasprites[]`, `<name>_TILE_COUNT`,
   etc). Regenerated on every `make`; not committed.
-- **`Metasprite` struct** (`sprites.h`): bundles a pointer to one generated
-  `metasprite_t` frame with the VRAM tile start index, OAM sprite slot, base
-  property flags, and `max_sprite_count` — the size of that entity's *reserved*
-  OAM slot range (not just what the current frame happens to use). Each entity
-  needs its own non-overlapping slot range; see `PLAYER_SPRITE_SLOT`/
-  `PLAYER_SPRITE_MAX_COUNT` as the pattern to follow for a new entity.
-- **`move_metasprite_to_position`** (`kinematics.c`) positions the metasprite via
-  `move_metasprite_ex`, then calls `hide_sprites_range` scoped to
-  `sprite_num .. sprite_num + max_sprite_count` — this hides any OAM slots the
-  entity reserved but didn't use this frame (e.g. a smaller animation frame
-  than a previous one) without ever being able to reach into another entity's
-  slots. This only matters once animation/variable sprite counts exist; today
-  it's a no-op since the player always uses exactly 4 sprites.
+- **`res/player.png` is a 48x16 sheet of three 16x16 direction-facing
+  frames stacked horizontally, in order: down, up, left/right (mirror for
+  the opposite side).** No walk-cycle frames yet — one static frame per
+  facing, intentionally. Split into `player_metasprites[0..2]` by passing
+  `-sw 16` to `png2asset` — see the explicit `$(RESOBJDIR)/player.c` rule in
+  the Makefile (the generic pattern rule doesn't know the frame size, so a
+  multi-frame sheet needs its own rule; see README's "Adding a New
+  Metasprite" step 2). Do **not** hand-run `png2asset` without an explicit
+  `-o`/`-c` output path against a file under `res/` — it defaults to writing
+  generated output next to the source PNG, which pollutes `res/` with
+  generated `.c`/`.h` that don't belong there (only `obj/res/` should ever
+  hold generated output).
+- **The metasprite type family** (`sprites.h`) splits into pieces so
+  direction-facing and future animation don't duplicate entity-level
+  bookkeeping:
+  - **`MetaspriteMetadata`** — the entity-level, frame-independent state:
+    VRAM tile start index, OAM sprite slot, base property flags, and
+    `max_sprite_count` (that entity's *reserved* OAM slot range — see
+    `PLAYER_SPRITE_SLOT`/`PLAYER_SPRITE_MAX_COUNT`). Same for every frame/
+    direction of a given entity.
+  - **`MetaspriteRef`** — one renderable frame: a pointer to a generated
+    `metasprite_t` plus `flip_x` (mirror it horizontally via
+    `move_metasprite_flipx` instead of storing a separate mirrored frame).
+  - **`Metasprite`** — `MetaspriteRef` + `MetaspriteMetadata`. A single
+    fixed frame; currently unused by `Player` (which needs direction-facing)
+    but kept for a future entity that's multi-tile but doesn't need it —
+    e.g. a non-directional decoration or effect.
+  - **`MetaspriteAnimationFrames`** — one direction's worth of animation
+    frames: `MetaspriteRef refs[METASPRITE_MAX_ANIMATION_FRAMES]`, wrapped
+    in its own struct (rather than a bare array) specifically so it can be
+    built and assigned by value — see `pad_metasprite_animation_frames`
+    below. Convention: index 0 is idle; pad the rest with the idle ref for
+    directions that don't have (or don't yet have) distinct walk frames.
+  - **`AnimatedMetasprite`** — `MetaspriteAnimationFrames frames[4]`
+    (indexed by `Direction`) + one shared `MetaspriteMetadata`. This is
+    `Player.metasprite`'s type.
+  - **`pad_metasprite_animation_frames(MetaspriteRef idle_ref)`**
+    (`utils/metasprite_util.c`) — builds a `MetaspriteAnimationFrames` with
+    every slot set to `idle_ref`. Deliberately knows nothing about
+    `AnimatedMetasprite` or `Direction`; it only builds one direction's
+    frame set, so it composes cleanly regardless of how many directions or
+    entities end up using it.
+  - **`create_player_metasprite`** (`player.c`) builds the player's
+    `AnimatedMetasprite`: one `MetaspriteRef` per direction from
+    `player_metasprites[0..2]` (down→0, up→1, right→2 native, left→2
+    mirrored via `flip_x`), each padded via `pad_metasprite_animation_frames`
+    since there's no walk-cycle art yet (every animation-frame slot repeats
+    the single idle-like pose for that direction).
+- **`move_metasprite_to_position`** (fixed `Metasprite`) and
+  **`move_animated_metasprite_to_position`** (`AnimatedMetasprite` +
+  `Direction` — looks up `metasprite.frames[direction].refs[0]`, i.e.
+  always the idle/first frame today; see "Known gaps") both funnel through
+  `kinematics.c`'s `static move_metasprite_ref` helper, which picks
+  `move_metasprite_ex` vs. `move_metasprite_flipx` based on
+  `MetaspriteRef.flip_x`, then calls `hide_sprites_range` scoped to
+  `sprite_num .. sprite_num + max_sprite_count` — this hides any OAM slots
+  the entity reserved but didn't use this frame (e.g. a smaller animation
+  frame than a previous one) without ever being able to reach into another
+  entity's slots. The `hide_sprites_range` part is currently a no-op since
+  the player always uses exactly 4 sprites regardless of direction.
 - **Sprite colors need their own palette call.** `set_bkg_palette` (background)
   and `set_sprite_data`/tile loading do **not** implicitly set sprite colors —
   without an explicit `set_sprite_palette` call (wrapped as
@@ -115,11 +174,13 @@ pieces:
   Convert to real pixels only at render time (`fixed_point_to_pixel`).
 - **Screen/velocity coordinate convention**: +x = right, +y = **down** (not up —
   standard top-left-origin screen space, opposite of math/graph convention).
-- **`move_sprite()`/`move_metasprite_ex()` hardware offset**: GB sprite
-  coordinates are offset by `+8` (x) / `+16` (y) from the visible screen
-  position (hardware reserves margin for sprites scrolling on/off-screen).
-  Handled once in `move_sprite_to_position`/`move_metasprite_to_position`, not
-  something callers need to think about.
+- **`move_sprite()`/`move_metasprite_ex()`/`move_metasprite_flipx()` hardware
+  offset**: GB sprite coordinates are offset by `+8` (x) / `+16` (y) from the
+  visible screen position (hardware reserves margin for sprites scrolling
+  on/off-screen). Handled once in `move_sprite_to_position`/
+  `move_metasprite_ref` (the shared helper behind both
+  `move_metasprite_to_position` and `move_animated_metasprite_to_position`),
+  not something callers need to think about.
 - **Opposing D-pad directions cancel to 0** rather than one arbitrarily winning
   (`compute_velocity_from_joypad` checks e.g. `left && !right`). Note: this
   couldn't actually be exercised/tested — Emulicious (like real hardware) never
@@ -129,7 +190,7 @@ pieces:
   `Position`, not a `Position *`) — no heap/malloc on this platform, so a
   pointer member would just add indirection with no ownership benefit. This
   does *not* apply to references into shared/const ROM data (e.g.
-  `Metasprite.metasprite` is a `const metasprite_t *` into a generated,
+  `MetaspriteRef.metasprite` is a `const metasprite_t *` into a generated,
   immutable frame array) — those are pointers by necessity (GBDK's API takes a
   pointer; there's no fixed-size value to copy) and by design (shared,
   read-only data, not owned state). Functions still take pointers (`Player *`)
@@ -143,19 +204,31 @@ pieces:
 
 ## Known gaps / next steps
 
-- **Player has real art but only one frame** — `res/player.png` (16x16, 2x2
-  tiles) replaced the old placeholder solid tile, loaded via the metasprite
-  pipeline (see "Metasprites" above), but there's still only one static frame.
-  No walk cycle, no direction-facing sprite swap yet.
+- **Direction-facing is wired up; walk-cycle animation still isn't.**
+  `update_player_sprite` → `move_animated_metasprite_to_position` picks the
+  right `MetaspriteAnimationFrames` for `player->direction`, but always reads
+  index 0 (`metasprite.frames[direction].refs[0]`) — there's no per-instance
+  animation-frame counter on `Player` yet, and `res/player.png` doesn't have
+  walk-cycle art to select between yet anyway (see "Metasprites" above).
+  Adding it needs: (1) walk-cycle frames added to `res/player.png` per
+  direction (or accept fewer directions animating than others — see
+  `METASPRITE_MAX_ANIMATION_FRAMES`'s "pad with idle" convention), (2) an
+  animation-frame/timer pair on `Player` (an earlier attempt at this lived on
+  `Player` as `animation_frame`/`animation_timer`, advanced in a dedicated
+  `update_player_animation` step between `apply_velocity` and
+  `update_player_sprite` — reasonable shape, just reverted because it was
+  built before direction-facing existed and animated off velocity alone), and
+  (3) `move_animated_metasprite_to_position` (or its caller) indexing
+  `refs[animation_frame]` instead of the hardcoded `refs[0]`.
 - **`JoypadState` doesn't cover A/B/Select yet** — only up/down/left/right/start.
 - **No collision detection** — `apply_velocity` applies velocity unconditionally.
   Planned approach (see Architecture above): candidate position → resolve
   against world (per-axis, not combined, to allow wall-sliding) → commit →
   sync sprite. Not yet implemented.
-- **No animation** — direction-facing state exists on `Player`, but nothing
-  currently changes sprite tiles/frames based on it. When animation frames are
-  added, `move_metasprite_flipx`/`_flipy` (hardware sprite flip) are the
-  natural fit for direction-facing without doubling up on stored art.
+- **`Metasprite`/`move_metasprite_to_position` (the non-directional,
+  single-frame path) currently have no callers** — `Player` moved fully to
+  `AnimatedMetasprite`. Kept intentionally for a future entity that's
+  multi-tile but doesn't need direction-facing (see "Metasprites" above).
 - **Sub-pixel movement is implemented but movement is simple** — constant
   velocity per frame while a direction is held, no acceleration/friction, no
   diagonal-speed normalization (diagonal movement is faster than cardinal).

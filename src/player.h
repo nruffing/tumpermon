@@ -5,12 +5,13 @@
 #include "sprites.h"
 
 typedef struct Player {
-    Metasprite metasprite;
+    AnimatedMetasprite metasprite;
     Position position;
     Direction direction;
 } Player;
 
-Player initialize_player(Position position, Metasprite metasprite);
+AnimatedMetasprite create_player_metasprite(void);
+Player initialize_player(Position position, AnimatedMetasprite metasprite);
 void apply_velocity(Player *player, Velocity velocity);
 void update_player_sprite(Player *player);
 

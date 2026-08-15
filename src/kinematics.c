@@ -17,23 +17,53 @@ void move_sprite_to_position(uint8_t sprite_num, Position position)
         fixed_point_to_pixel(position.y) + SPRITE_Y_OFFSET);
 }
 
-void move_metasprite_to_position(Metasprite metasprite, Position position)
+static void move_metasprite_ref(MetaspriteRef ref, MetaspriteMetadata metadata, Position position)
 {
-    uint8_t sprites_used = move_metasprite_ex(
-        metasprite.metasprite,
-        metasprite.start_tile_index,
-        metasprite.base_props,
-        metasprite.sprite_num,
-        fixed_point_to_pixel(position.x) + SPRITE_X_OFFSET,
-        fixed_point_to_pixel(position.y) + SPRITE_Y_OFFSET);
+    uint8_t new_x = fixed_point_to_pixel(position.x) + SPRITE_X_OFFSET;
+    uint8_t new_y = fixed_point_to_pixel(position.y) + SPRITE_Y_OFFSET;
+    uint8_t sprites_used = 0;
+
+    if (ref.flip_x) {
+        sprites_used = move_metasprite_flipx(
+            ref.metasprite,
+            metadata.start_tile_index,
+            metadata.base_props,
+            metadata.sprite_num,
+            new_x,
+            new_y);
+    } else {
+        sprites_used = move_metasprite_ex(
+            ref.metasprite,
+            metadata.start_tile_index,
+            metadata.base_props,
+            metadata.sprite_num,
+            new_x,
+            new_y);
+    }
 
     // Hide any OAM slots reserved for this metasprite that this frame didn't
     // use (e.g. an animation frame with fewer sprites than a previous one).
     // Scoped to this metasprite's own reserved range (sprite_num..sprite_num
     // + max_sprite_count) so it can never reach into another entity's slots.
-    hide_sprites_range(
-        metasprite.sprite_num + sprites_used,
-        metasprite.sprite_num + metasprite.max_sprite_count);
+    if (sprites_used > 0) {
+        hide_sprites_range(
+            metadata.sprite_num + sprites_used,
+            metadata.sprite_num + metadata.max_sprite_count);
+    }
+}
+
+void move_metasprite_to_position(Metasprite metasprite, Position position)
+{
+    move_metasprite_ref(metasprite.ref, metasprite.metadata, position);
+}
+
+void move_animated_metasprite_to_position(
+    AnimatedMetasprite metasprite,
+    Position position,
+    Direction direction)
+{
+    MetaspriteRef ref = metasprite.frames[direction].refs[0];
+    move_metasprite_ref(ref, metasprite.metadata, position);
 }
 
 Velocity compute_velocity_from_joypad(JoypadState state)

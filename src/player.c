@@ -5,8 +5,37 @@
 #include <res/player.h>
 
 #include "kinematics.h"
+#include "utils/metasprite_util.h"
 
-Player initialize_player(Position position, Metasprite metasprite)
+AnimatedMetasprite create_player_metasprite(void)
+{
+    MetaspriteRef down_ref = { .metasprite = player_metasprites[0], .flip_x = false };
+    MetaspriteRef up_ref = { .metasprite = player_metasprites[1], .flip_x = false };
+    MetaspriteRef right_ref = { .metasprite = player_metasprites[2], .flip_x = true };
+    MetaspriteRef left_ref = { .metasprite = player_metasprites[2], .flip_x = false };
+
+    AnimatedMetasprite metasprite = {
+        .metadata = {
+            .start_tile_index = PLAYER_SPRITE_TILE_START_INDEX,
+            .sprite_num = PLAYER_SPRITE_SLOT,
+            .base_props = DEFAULT_METASPRITE_BASE_PROP,
+            .max_sprite_count = PLAYER_SPRITE_MAX_COUNT,
+        },
+    };
+
+    // No walk-cycle art yet — every animation-frame slot for a direction
+    // repeats that direction's single pose (see sprites.h's "pad to max
+    // with idle" convention on MetaspriteAnimationFrames). Once walk frames
+    // exist, build each direction's frames directly instead of padding.
+    metasprite.frames[DIRECTION_DOWN] = pad_metasprite_animation_frames(down_ref);
+    metasprite.frames[DIRECTION_UP] = pad_metasprite_animation_frames(up_ref);
+    metasprite.frames[DIRECTION_LEFT] = pad_metasprite_animation_frames(left_ref);
+    metasprite.frames[DIRECTION_RIGHT] = pad_metasprite_animation_frames(right_ref);
+
+    return metasprite;
+}
+
+Player initialize_player(Position position, AnimatedMetasprite metasprite)
 {
     Player player = { .metasprite = metasprite, .position = position, .direction = DIRECTION_DOWN };
     update_player_sprite(&player);
@@ -33,5 +62,5 @@ void apply_velocity(Player *player, Velocity velocity)
 
 void update_player_sprite(Player *player)
 {
-    move_metasprite_to_position(player->metasprite, player->position);
+    move_animated_metasprite_to_position(player->metasprite, player->position, player->direction);
 }

@@ -28,7 +28,9 @@ CSOURCES   := $(wildcard src/*.c src/*/*.c)
 ASMSOURCES := $(wildcard src/*.s src/*/*.s)
 
 # Metasprite pngs in res/ -> generated .c/.h in obj/res/
-# (single-frame pngs use their own width/height automatically, so no -sw/-sh needed)
+# (single-frame pngs use their own width/height automatically, so no -sw/-sh needed.
+# Multi-frame pngs need an explicit per-file rule below passing -sw/-sh so
+# png2asset splits the sheet into separate metasprite frames.)
 RESDIR    = res
 RESOBJDIR = obj/res
 METAPNGS  := $(wildcard $(RESDIR)/*.png)
@@ -42,6 +44,16 @@ all:	$(BINS)
 compile.bat: Makefile
 	@echo "REM Automatically generated from Makefile" > compile.bat
 	@make -sn | sed y/\\//\\\\/ | sed s/mkdir\ \-p/mkdir/ | grep -v make >> compile.bat
+
+# res/player.png is a 48x16 sheet of three 16x16 direction-facing frames
+# stacked horizontally, in order: down, up, left/right (mirror for the
+# opposite side). No walk-cycle frames yet — one static frame per facing. -sw 16
+# tells png2asset to split it into three metasprite frames
+# (player_metasprites[0..2]) instead of one 48-wide frame. This explicit rule
+# overrides the generic pattern rule below for this file.
+$(RESOBJDIR)/player.c:	$(RESDIR)/player.png
+	@mkdir -p $(RESOBJDIR)
+	$(PNG2ASSET) $< -sw 16 -spr8x8 -noflip -c $@
 
 # Convert metasprite pngs to C source before they're needed as CSOURCES
 $(RESOBJDIR)/%.c:	$(RESDIR)/%.png

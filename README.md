@@ -4,6 +4,8 @@ A Game Boy homebrew game built with [GBDK-2020](https://github.com/gbdk-2020/gbd
 started from GBDK's `template-minimal` example. Currently has a splash screen and a
 player character that can be moved around with the D-pad.
 
+The current focus is building the game engine mostly as a learning exercise. Game content will be a focus later. The goal is to end up with a game engine that could be used for various types of games and additional more opinionated support for top-down, top-down tile-based overworld RPG style games. There is no attempt at creating a separate library for this engine yet but code architecture decisions should favor doing that easily in the future.
+
 The Makefile automatically detects and compiles new source files as long as they're
 placed in `src/` (or one subfolder deep, e.g. `src/utils/`).
 
@@ -118,7 +120,11 @@ This was confirmed to work with
 
 ## Creating Sprites/Tiles
 
-Sprites were creating using [gb-sprite](https://github.com/nruffing/gb-sprite) which was developed in-parallel. 
+### gb-sprite
+
+Sprites were creating using [gb-sprite](https://github.com/nruffing/gb-sprite) which was developed in-parallel to this game. 
+
+### Game Boy Tile Tool
 
 `gb-sprite` was inspired by [Game Boy Tile Tool](https://nathanheffley.itch.io/game-boy-tile-tool) which is also a good option. `gb-sprite` was aiming to be more opinionated on the workflow that seemed to work the best for me as I was learning sprite design.
 
@@ -138,18 +144,27 @@ just use `move_sprite_to_position` from `kinematics.h` directly.
    - Must be **indexed/paletted** (not RGB/RGBA) — export as such from your
      sprite tool. `gb-sprite` and Game Boy Tile Tool (above) both do this.
    - Dimensions must be a multiple of 8x8 (e.g. 16x16 for a 2x2-tile sprite).
-   - For multiple animation frames in one file, stack them vertically at a
-     consistent frame height and pass `-sh <frame height>` (see step 2) —
-     each frame becomes an entry in the generated `..._metasprites[]` array.
+   - For multiple frames in one file — whether animation frames or sprite
+     variants like direction-facing — stack them at a consistent frame size
+     and pass `-sh <frame height>` (frames stacked vertically) or
+     `-sw <frame width>` (frames stacked horizontally) — see step 2. Each
+     frame becomes an entry in the generated `..._metasprites[]` array, in
+     stacking order. `res/player.png` is the example to follow: a 48x16 sheet
+     of three 16x16 direction-facing frames (down, up, left/right) stacked
+     horizontally (`-sw 16`), giving `player_metasprites[0..2]` — no
+     walk-cycle animation frames yet, just one frame per facing.
    - ≤4 colors (2bpp) keeps it on a single CGB sprite palette; more needs
      `-max_palettes`/multiple `set_sprite_palette` slots.
 
-2. **The Makefile picks it up automatically** — every `.png` in `res/` gets
-   converted by `png2asset` into `obj/res/<name>.c`/`.h` as part of `make`
-   (see the `$(RESOBJDIR)/%.c` rule). No Makefile changes needed for a new
-   sprite. If your sprite isn't 8x8-tile hardware sprites (i.e. wider or
-   using 8x16 mode), adjust the `png2asset` flags in that rule — currently
-   `-spr8x8 -noflip`, matching the player's 16x16 (2x2 tile) art.
+2. **The Makefile picks up single-frame pngs automatically** via the generic
+   `$(RESOBJDIR)/%.c` pattern rule — every `.png` in `res/` gets converted by
+   `png2asset` into `obj/res/<name>.c`/`.h` as part of `make`, no Makefile
+   changes needed. **Multi-frame pngs need an explicit per-file rule** adding
+   `-sw`/`-sh` (the generic rule can't know your frame size) — add one above
+   the generic rule, following `$(RESOBJDIR)/player.c`'s as the pattern. If
+   your sprite isn't 8x8-tile hardware sprites (i.e. using 8x16 mode), adjust
+   the `png2asset` flags similarly — currently `-spr8x8 -noflip`, matching the
+   player's art.
 
 3. **`#include <res/<name>.h>`** in the `.c` file that uses it. This gives
    you (using `enemy.png` as an example):
@@ -178,15 +193,27 @@ just use `move_sprite_to_position` from `kinematics.h` directly.
    want, and move it with `move_metasprite_to_position` from `kinematics.c`:
    ```c
    Metasprite metasprite = {
-       .metasprite = enemy_metasprites[0],
-       .sprite_num = ENEMY_SPRITE_SLOT,
-       .start_tile_index = ENEMY_SPRITE_TILE_START_INDEX,
+       .ref = { .metasprite = enemy_metasprites[0], .flip_x = false },
+       .metadata = {
+           .sprite_num = ENEMY_SPRITE_SLOT,
+           .start_tile_index = ENEMY_SPRITE_TILE_START_INDEX,
+           .max_sprite_count = ENEMY_SPRITE_MAX_COUNT,
+       },
    };
    move_metasprite_to_position(metasprite, position);
    ```
-   For animation, swap which `enemy_metasprites[i]` the `Metasprite` points
-   at based on a frame counter — the tile data stays loaded, only the frame
-   layout pointer changes.
+   This is for an entity with one fixed frame (no direction-facing, no
+   animation). For a directional entity like the player — several frames
+   selected by facing, optionally several more per facing for a walk cycle —
+   use `AnimatedMetasprite` instead: one `MetaspriteRef` per `Direction`,
+   each built into a `MetaspriteAnimationFrames` (pad the unused frame slots
+   with a repeated idle ref via `pad_metasprite_animation_frames` from
+   `utils/metasprite_util.h` if you don't have distinct walk frames for every
+   direction yet), and move it with `move_animated_metasprite_to_position`
+   (takes a `Direction` in addition to `Position`). `player.c`'s
+   `create_player_metasprite` is the example to follow — it also shows the
+   `flip_x` mirroring trick (reusing one frame for two opposite-facing
+   directions instead of drawing both).
 
 7. **Rebuild** (`make`) — `obj/res/` is regenerated from the PNGs each time
    and is gitignored, so nothing under it needs to be committed.
