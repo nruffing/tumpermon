@@ -12,7 +12,7 @@
 void wait_for_start(void)
 {
     while (1) {
-        JoypadState state = process_joypad();
+        JoypadState state = process_joypad(0);
         if (state.start.is_just_pressed) {
             break;
         }

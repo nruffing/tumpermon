@@ -1,8 +1,10 @@
 #include <gb/gb.h>
 #include <stdint.h>
 
+#include "context.h"
 #include "joypad.h"
 #include "player.h"
+#include "kinematics.h"
 #include "splash.h"
 #include "sprites.h"
 #include "utils/util.h"
@@ -36,12 +38,14 @@ Player create_player(void)
     return player;
 }
 
-void process_frame(Player *player)
+void process_frame(Context *context)
 {
-    JoypadState state = process_joypad();
-    Velocity velocity = compute_velocity_from_joypad(state);
-    apply_velocity(player, velocity);
-    update_player_sprite(player);
+    context->tick++;
+
+    JoypadState state = process_joypad(context->tick);
+    Velocity velocity = compute_velocity_from_joypad(&state, context->kinematics);
+    apply_velocity(context->player, velocity);
+    update_player_sprite(context->player);
 }
 
 void main(void)
@@ -50,12 +54,15 @@ void main(void)
     reset_screen();
 
     initialize_sprites();
+
     Player player = create_player();
+    KinematicBehaviorContext kinematics = { .allow_diagonal_movement = false };
+    Context context = { .tick = 0, .player = &player, .kinematics = &kinematics };  
 
     // Loop forever
     while (1) {
         // Game main loop processing goes here
-        process_frame(&player);
+        process_frame(&context);
 
         // Done processing, yield CPU and wait for start of next frame
         vsync();

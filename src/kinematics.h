@@ -6,6 +6,7 @@
 // speeds (e.g. 1.5 px/frame) via plain integer addition, with no drift —
 // only converted down to whole pixels at render time.
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "joypad.h"
@@ -13,6 +14,10 @@
 
 #define FIXED_POINT_POSITION_LENGTH 4
 #define VELOCITY_PER_FRAME 12
+
+typedef struct KinematicBehaviorContext {
+    bool allow_diagonal_movement;
+} KinematicBehaviorContext;
 
 typedef struct Position {
     uint16_t x; // fixed-point
@@ -38,6 +43,11 @@ void move_animated_metasprite_to_position(
     Position position,
     Direction direction);
 
-Velocity compute_velocity_from_joypad(JoypadState state);
+// Takes both by pointer rather than by value — JoypadState in particular is
+// large enough (8 InputStates) that passing it by value on this platform's
+// constrained stack/calling convention risks corruption; see the diagonal-
+// movement bug this fixed (kinematics.allow_diagonal_movement was
+// intermittently reading true when it should always be false).
+Velocity compute_velocity_from_joypad(const JoypadState *state, const KinematicBehaviorContext *kinematics);
 
 #endif

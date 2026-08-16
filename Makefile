@@ -11,9 +11,13 @@ endif
 LCC       = $(GBDK_HOME)/bin/lcc
 PNG2ASSET = $(GBDK_HOME)/bin/png2asset
 
-# GBDK_DEBUG = ON
+#GBDK_DEBUG = ON
 ifdef GBDK_DEBUG
 	LCCFLAGS += -debug -v
+	# Makefile variables aren't visible to C — this is what actually lets
+	# `#ifdef GBDK_DEBUG` work in .c/.h files (e.g. to compile out
+	# EMU_printf calls in a non-debug build).
+	CFLAGS += -DGBDK_DEBUG
 endif
 
 # Make the ROM CGB compatible (but not exclusive)

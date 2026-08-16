@@ -4,6 +4,8 @@
 #include <gb/metasprites.h>
 #include <stdbool.h>
 
+#include "utils/tick_util.h"
+
 static uint8_t fixed_point_to_pixel(uint16_t value)
 {
     return value >> FIXED_POINT_POSITION_LENGTH;
@@ -66,22 +68,42 @@ void move_animated_metasprite_to_position(
     move_metasprite_ref(ref, metasprite.metadata, position);
 }
 
-Velocity compute_velocity_from_joypad(JoypadState state)
+Velocity compute_velocity_from_joypad(const JoypadState *state, const KinematicBehaviorContext *kinematics)
 {
     int16_t vel_x = 0, vel_y = 0;
+    uint16_t y_pressed_at_tick = 0, x_pressed_at_tick = 0;
 
     // Opposing directions held simultaneously cancel out to 0, rather than
     // one arbitrarily winning.
-    if (state.up.is_pressed && !state.down.is_pressed) {
+    if (state->up.is_pressed && !state->down.is_pressed) {
         vel_y = -1 * VELOCITY_PER_FRAME;
-    } else if (state.down.is_pressed && !state.up.is_pressed) {
+        y_pressed_at_tick = state->up.pressed_at_tick;
+    } else if (state->down.is_pressed && !state->up.is_pressed) {
         vel_y = VELOCITY_PER_FRAME;
+        y_pressed_at_tick = state->down.pressed_at_tick;
     }
 
-    if (state.left.is_pressed && !state.right.is_pressed) {
+    if (state->left.is_pressed && !state->right.is_pressed) {
         vel_x = -1 * VELOCITY_PER_FRAME;
-    } else if (state.right.is_pressed && !state.left.is_pressed) {
+        x_pressed_at_tick = state->left.pressed_at_tick;
+    } else if (state->right.is_pressed && !state->left.is_pressed) {
         vel_x = VELOCITY_PER_FRAME;
+        x_pressed_at_tick = state->right.pressed_at_tick;
+    }
+
+    // When diagonal movement isn't allowed and both axes are active,
+    // whichever direction was pressed more recently wins and the other
+    // axis is dropped. Ties (tick_diff == 0 — e.g. both held since before
+    // either changed) keep vertical, matching apply_velocity's
+    // facing-priority tie-break in player.c.
+    bool both_axes_active = (vel_x != 0) && (vel_y != 0);
+    if (!kinematics->allow_diagonal_movement && both_axes_active) {
+        int16_t tick_diff = compare_ticks(x_pressed_at_tick, y_pressed_at_tick);
+        if (tick_diff > 0) {
+            vel_y = 0;
+        } else {
+            vel_x = 0;
+        }
     }
 
     Velocity velocity = { .x = vel_x, .y = vel_y };
