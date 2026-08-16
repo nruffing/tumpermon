@@ -45,6 +45,13 @@ See `CLAUDE.md` for architecture notes, coding conventions, and known gaps.
    find src -name "*.c" -o -name "*.h" | xargs clang-format -i
    ```
 
+6. **Enable the pre-commit format hook**, which auto-runs `clang-format` on
+   staged `.c`/`.h` files (via `.githooks/pre-commit`) before each commit.
+   `core.hooksPath` isn't set by cloning, so run this once per clone:
+   ```
+   git config core.hooksPath .githooks
+   ```
+
 ## Building
 
 The Makefile assumes GBDK is installed two directories up (`../../`). If your

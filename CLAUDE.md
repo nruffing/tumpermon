@@ -5,6 +5,12 @@ GBDK example. Built with `lcc`/SDCC, run in Emulicious for dev, flashed to real
 cartridges via GBxCart RW + FlashGBX for hardware testing. See `README.md` for
 build/run/flash instructions, including the "Adding a New Metasprite" workflow.
 
+Formatting follows `.clang-format` at the repo root, auto-applied to staged
+`.c`/`.h` files by a `pre-commit` hook (`.githooks/pre-commit`) — enabled per-clone
+via `git config core.hooksPath .githooks` (see README Setup step 6). Don't
+hand-format against a different style; let the hook (or VS Code format-on-save)
+handle it.
+
 **Keep this file up to date.** When a change alters architecture, conventions, or
 known gaps described below (not just a one-off bugfix), update the relevant section
 in the same pass — don't leave this file describing a design that's since changed.
