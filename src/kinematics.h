@@ -48,6 +48,8 @@ void move_animated_metasprite_to_position(
 // constrained stack/calling convention risks corruption; see the diagonal-
 // movement bug this fixed (kinematics.allow_diagonal_movement was
 // intermittently reading true when it should always be false).
-Velocity compute_velocity_from_joypad(const JoypadState *state, const KinematicBehaviorContext *kinematics);
+Velocity compute_velocity_from_joypad(
+    const JoypadState *state,
+    const KinematicBehaviorContext *kinematics);
 
 #endif

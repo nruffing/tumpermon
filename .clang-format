@@ -8,6 +8,7 @@ Cpp11BracedListStyle: false
 BinPackArguments: false
 BinPackParameters: false
 AlignAfterOpenBracket: AlwaysBreak
+AlwaysBreakAfterReturnType: None
 AllowAllArgumentsOnNextLine: false
 AllowAllParametersOfDeclarationOnNextLine: false
 BreakBeforeBraces: Custom
@@ -21,3 +22,4 @@ BraceWrapping:
   BeforeWhile: false
   IndentBraces: false
   SplitEmptyFunction: true
+PenaltyReturnTypeOnItsOwnLine: 1000

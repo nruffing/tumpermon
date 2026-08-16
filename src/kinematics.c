@@ -68,7 +68,9 @@ void move_animated_metasprite_to_position(
     move_metasprite_ref(ref, metasprite.metadata, position);
 }
 
-Velocity compute_velocity_from_joypad(const JoypadState *state, const KinematicBehaviorContext *kinematics)
+Velocity compute_velocity_from_joypad(
+    const JoypadState *state,
+    const KinematicBehaviorContext *kinematics)
 {
     int16_t vel_x = 0, vel_y = 0;
     uint16_t y_pressed_at_tick = 0, x_pressed_at_tick = 0;

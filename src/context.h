@@ -1,10 +1,12 @@
 #ifndef CONTEXT_H
 #define CONTEXT_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
-#include "player.h"
+#include "joypad.h"
 #include "kinematics.h"
+#include "player.h"
 
 typedef struct Context {
     // Monotonic frame counter — incremented once per process_frame() call
@@ -15,6 +17,9 @@ typedef struct Context {
     // compare_ticks's comment for wraparound behavior/limits — this is a
     // uint16_t for the same reasoning laid out there.
     uint16_t tick;
+
+    bool is_paused;
+    JoypadState joypad_state;
 
     Player *player;
     KinematicBehaviorContext *kinematics;

@@ -3,8 +3,8 @@
 
 #include "context.h"
 #include "joypad.h"
-#include "player.h"
 #include "kinematics.h"
+#include "player.h"
 #include "splash.h"
 #include "sprites.h"
 #include "utils/util.h"
@@ -38,12 +38,24 @@ Player create_player(void)
     return player;
 }
 
+void handle_pause(Context *context)
+{
+    if (context->joypad_state.start.is_just_pressed) {
+        context->is_paused = !context->is_paused;
+    }
+}
+
 void process_frame(Context *context)
 {
     context->tick++;
 
-    JoypadState state = process_joypad(context->tick);
-    Velocity velocity = compute_velocity_from_joypad(&state, context->kinematics);
+    context->joypad_state = process_joypad(context->tick);
+    handle_pause(context);
+    if (context->is_paused) {
+        return;
+    }
+
+    Velocity velocity = compute_velocity_from_joypad(&context->joypad_state, context->kinematics);
     apply_velocity(context->player, velocity);
     update_player_sprite(context->player);
 }
@@ -57,7 +69,10 @@ void main(void)
 
     Player player = create_player();
     KinematicBehaviorContext kinematics = { .allow_diagonal_movement = false };
-    Context context = { .tick = 0, .player = &player, .kinematics = &kinematics };  
+    Context context = { .tick = 0,
+                        .is_paused = false,
+                        .player = &player,
+                        .kinematics = &kinematics };
 
     // Loop forever
     while (1) {

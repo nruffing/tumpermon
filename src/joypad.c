@@ -37,14 +37,54 @@ JoypadState process_joypad(uint16_t tick)
     uint8_t joypad_current = joypad();
 
     JoypadState state;
-    state.up = build_input_state(tick, joypad_current, joypad_previous, J_UP, state_previous.up.pressed_at_tick);
-    state.down = build_input_state(tick, joypad_current, joypad_previous, J_DOWN, state_previous.down.pressed_at_tick);
-    state.left = build_input_state(tick, joypad_current, joypad_previous, J_LEFT, state_previous.left.pressed_at_tick);
-    state.right = build_input_state(tick, joypad_current, joypad_previous, J_RIGHT, state_previous.right.pressed_at_tick);
-    state.start = build_input_state(tick, joypad_current, joypad_previous, J_START, state_previous.start.pressed_at_tick);
-    state.select = build_input_state(tick, joypad_current, joypad_previous, J_SELECT, state_previous.select.pressed_at_tick);
-    state.a = build_input_state(tick, joypad_current, joypad_previous, J_A, state_previous.a.pressed_at_tick);
-    state.b = build_input_state(tick, joypad_current, joypad_previous, J_B, state_previous.b.pressed_at_tick);
+    state.up = build_input_state(
+        tick,
+        joypad_current,
+        joypad_previous,
+        J_UP,
+        state_previous.up.pressed_at_tick);
+    state.down = build_input_state(
+        tick,
+        joypad_current,
+        joypad_previous,
+        J_DOWN,
+        state_previous.down.pressed_at_tick);
+    state.left = build_input_state(
+        tick,
+        joypad_current,
+        joypad_previous,
+        J_LEFT,
+        state_previous.left.pressed_at_tick);
+    state.right = build_input_state(
+        tick,
+        joypad_current,
+        joypad_previous,
+        J_RIGHT,
+        state_previous.right.pressed_at_tick);
+    state.start = build_input_state(
+        tick,
+        joypad_current,
+        joypad_previous,
+        J_START,
+        state_previous.start.pressed_at_tick);
+    state.select = build_input_state(
+        tick,
+        joypad_current,
+        joypad_previous,
+        J_SELECT,
+        state_previous.select.pressed_at_tick);
+    state.a = build_input_state(
+        tick,
+        joypad_current,
+        joypad_previous,
+        J_A,
+        state_previous.a.pressed_at_tick);
+    state.b = build_input_state(
+        tick,
+        joypad_current,
+        joypad_previous,
+        J_B,
+        state_previous.b.pressed_at_tick);
 
     joypad_previous = joypad_current;
     state_previous = state;

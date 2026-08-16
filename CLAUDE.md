@@ -58,6 +58,14 @@ main.c (process_frame)
   button state (`is_pressed`, `is_just_pressed` — edge-detected via a `static`
   previous-frame value inside `process_joypad`, shared correctly across all
   callers including the splash screen). Deliberately has no `Player` dependency.
+- **`context.h`** — `Context`, the per-frame state bundle threaded through
+  `main.c`'s loop: `tick`, `is_paused`, a value-embedded `JoypadState
+  joypad_state` (value, not pointer — see "Struct composition" below), and
+  pointers to `Player`/`KinematicBehaviorContext`. `process_frame` populates
+  `joypad_state` and `tick` each frame, then calls `handle_pause` (toggles
+  `is_paused` on `Start`) before doing anything movement-related; when
+  `is_paused` the rest of `process_frame` (velocity/sprite update) is skipped
+  for that frame.
 - **`player.{c,h}`** — the only module that knows about `Player`. `apply_velocity`
   mutates position/direction only (no hardware calls); `update_player_sprite` is
   a separate step that pushes state to the sprite (via
@@ -220,7 +228,6 @@ pieces:
   built before direction-facing existed and animated off velocity alone), and
   (3) `move_animated_metasprite_to_position` (or its caller) indexing
   `refs[animation_frame]` instead of the hardcoded `refs[0]`.
-- **`JoypadState` doesn't cover A/B/Select yet** — only up/down/left/right/start.
 - **No collision detection** — `apply_velocity` applies velocity unconditionally.
   Planned approach (see Architecture above): candidate position → resolve
   against world (per-axis, not combined, to allow wall-sliding) → commit →
