@@ -6,6 +6,7 @@
 
 #include "joypad.h"
 #include "kinematics.h"
+#include "menu.h"
 #include "player.h"
 
 typedef struct Context {
@@ -21,6 +22,7 @@ typedef struct Context {
     bool is_paused;
     JoypadState joypad_state;
 
+    MenuContext *menus;
     Player *player;
     KinematicBehaviorContext *kinematics;
 } Context;

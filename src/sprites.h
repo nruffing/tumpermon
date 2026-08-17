@@ -23,6 +23,14 @@
 
 #define METASPRITE_MAX_ANIMATION_FRAMES 3 // widen later if some entity needs more
 
+// Sprite (OBJ) and Background/Window tile pattern data share the same
+// underlying VRAM tile pool (0-255) — set_sprite_data and set_bkg_data/
+// set_win_data are writing into the same physical tile indices, not separate
+// banks. FONT_TILE_START_INDEX must not overlap PLAYER_SPRITE_TILE_START_INDEX
+// (..+player_TILE_COUNT); placed right after the player's 12 tiles. Bump this
+// forward (and update the comment) if another sprite claims tiles before it.
+#define FONT_TILE_START_INDEX 12
+
 // base sprite property flags (can be used to set palette, etc)
 #define DEFAULT_METASPRITE_BASE_PROP 0
 

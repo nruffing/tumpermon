@@ -59,6 +59,15 @@ $(RESOBJDIR)/player.c:	$(RESDIR)/player.png
 	@mkdir -p $(RESOBJDIR)
 	$(PNG2ASSET) $< -sw 16 -spr8x8 -noflip -c $@
 
+# res/font.png is a background/window tileset (menu text), not a sprite sheet —
+# omit -spr8x8 so png2asset emits plain BG/window-format tile data
+# (font_tiles/font_TILE_COUNT) instead of metasprite structures. Placeholder
+# copied from examples/cross-platform/text_basic/res/Font.png; swap for real
+# art later. This explicit rule overrides the generic pattern rule below.
+$(RESOBJDIR)/font.c:	$(RESDIR)/font.png
+	@mkdir -p $(RESOBJDIR)
+	$(PNG2ASSET) $< -c $@ -map -keep_palette_order -noflip
+
 # Convert metasprite pngs to C source before they're needed as CSOURCES
 $(RESOBJDIR)/%.c:	$(RESDIR)/%.png
 	@mkdir -p $(RESOBJDIR)

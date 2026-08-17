@@ -4,10 +4,13 @@
 #include "context.h"
 #include "joypad.h"
 #include "kinematics.h"
+#include "menu.h"
+#include "menus.h"
 #include "player.h"
 #include "splash.h"
 #include "sprites.h"
 #include "utils/util.h"
+#include <res/font.h>
 #include <res/player.h>
 
 void initialize_player_sprite(void)
@@ -30,6 +33,14 @@ void initialize_sprites(void)
     SHOW_SPRITES; // turn on sprites layer, once
 }
 
+void initialize_font(void)
+{
+    // Loads the font tileset (res/font.png) into the shared BG/window tile
+    // pool at FONT_TILE_START_INDEX (sprites.h) once, before any
+    // draw_win_text call.
+    set_win_data(FONT_TILE_START_INDEX, font_TILE_COUNT, font_tiles);
+}
+
 Player create_player(void)
 {
     Position player_initial_position = { .x = 1216, .y = 1088 };
@@ -42,6 +53,11 @@ void handle_pause(Context *context)
 {
     if (context->joypad_state.start.is_just_pressed) {
         context->is_paused = !context->is_paused;
+        if (context->is_paused) {
+            show_menu(&pause_menu, context->menus->pause_menu_selected_index);
+        } else {
+            hide_menu();
+        }
     }
 }
 
@@ -66,11 +82,14 @@ void main(void)
     reset_screen();
 
     initialize_sprites();
+    initialize_font();
 
     Player player = create_player();
     KinematicBehaviorContext kinematics = { .allow_diagonal_movement = false };
+    MenuContext menus = { .pause_menu_selected_index = 0 };
     Context context = { .tick = 0,
                         .is_paused = false,
+                        .menus = &menus,
                         .player = &player,
                         .kinematics = &kinematics };
 
