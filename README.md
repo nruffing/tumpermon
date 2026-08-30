@@ -40,10 +40,8 @@ See `CLAUDE.md` for architecture notes, coding conventions, and known gaps.
    `brew install clang-format` on macOS. Formatting follows `.clang-format`
    at the repo root; with the recommended VS Code extensions installed
    (step 4), `.vscode/settings.json` formats C files on save automatically.
-   To format everything from the command line:
-   ```
-   find src -name "*.c" -o -name "*.h" | xargs clang-format -i
-   ```
+   To format everything from the command line, run `make format` (also run
+   automatically as part of `make force` — see Building below).
 
 6. **Enable the pre-commit format hook**, which auto-runs `clang-format` on
    staged `.c`/`.h` files (via `.githooks/pre-commit`) before each commit.
@@ -70,9 +68,12 @@ compile.bat
 ```
 
 Either produces `Tumpermon.gb` in this directory. Run `make clean` to remove
-build artifacts, `make force` to force a full rebuild (clean + all), or
-`make romsize` to print how much of the 32KB ROM budget is actually used
+build artifacts, `make force` to force a full rebuild (clean, format, then
+all), or `make romsize` to print how much of the 32KB ROM budget is actually used
 (see `CLAUDE.md`'s Build section — plain file size isn't useful for this).
+Run `make format` to clang-format all project sources/headers in place (the
+same formatting the pre-commit hook applies to staged files — see Setup
+step 6) without needing to commit first.
 
 ## Running
 

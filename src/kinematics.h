@@ -6,6 +6,7 @@
 // speeds (e.g. 1.5 px/frame) via plain integer addition, with no drift —
 // only converted down to whole pixels at render time.
 
+#include <gb/drawing.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -14,6 +15,18 @@
 
 #define FIXED_POINT_POSITION_LENGTH 4
 #define VELOCITY_PER_FRAME 12
+
+// Position bounds of the visible screen, in fixed-point units (see above) —
+// e.g. clamping/random-spawn callers like rand_range(MIN_POSITION_X,
+// MAX_POSITION_X). These are screen bounds, not sprite bounds: they don't
+// account for a given entity's tile size, so a sprite placed at
+// MAX_POSITION_X/Y will have part of itself hang off the right/bottom edge
+// (same as GRAPHICS_WIDTH/HEIGHT - 1 in pixel space) — callers that need a
+// fully on-screen sprite should subtract that entity's width/height first.
+#define MIN_POSITION_X 0
+#define MIN_POSITION_Y 0
+#define MAX_POSITION_X ((GRAPHICS_WIDTH - 1) << FIXED_POINT_POSITION_LENGTH)
+#define MAX_POSITION_Y ((GRAPHICS_HEIGHT - 1) << FIXED_POINT_POSITION_LENGTH)
 
 typedef struct KinematicBehaviorContext {
     bool allow_diagonal_movement;
@@ -51,5 +64,7 @@ void move_animated_metasprite_to_position(
 Velocity compute_velocity_from_joypad(
     const JoypadState *state,
     const KinematicBehaviorContext *kinematics);
+
+uint16_t absolute_distance(Position a, Position b);
 
 #endif

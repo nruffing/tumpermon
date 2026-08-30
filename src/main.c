@@ -10,6 +10,7 @@
 #include "player.h"
 #include "splash.h"
 #include "sprites.h"
+#include "utils/rand_util.h"
 #include "utils/util.h"
 #include <res/enemy.h>
 #include <res/font.h>
@@ -71,9 +72,20 @@ void reset_player(Context *context)
 
 void seed_enemies(Enemy *enemies, uint8_t enemy_count)
 {
-    Position initial_position = { .x = 800, .y = 800 };
+    Position initial_position = { .x = rand_range(MIN_POSITION_X, MAX_POSITION_X),
+                                  .y = rand_range(MIN_POSITION_Y, MAX_POSITION_Y) };
     for (uint8_t i = 0; i < enemy_count; i++) {
         enemies[i] = initialize_enemy(i, initial_position);
+    }
+}
+
+void reset_enemies(Context *context)
+{
+    for (uint8_t i = 0; i < context->enemy_count; i++) {
+        Enemy *enemy = &context->enemies[i];
+        enemy->position.x = rand_range(MIN_POSITION_X, MAX_POSITION_X);
+        enemy->position.y = rand_range(MIN_POSITION_Y, MAX_POSITION_Y);
+        update_enemy_sprite(enemy);
     }
 }
 
@@ -111,6 +123,7 @@ void handle_menu_item_select(Context *context)
     case PAUSE_MENU_ID:
         if (option.id == PAUSE_MENU_RESTART_ID) {
             reset_player(context);
+            reset_enemies(context);
         }
         // no state changes required for resume menu option
         context->is_paused = false;
@@ -184,8 +197,19 @@ void process_frame(Context *context)
 
 void main(void)
 {
-    splash();
+    uint16_t splash_tick = 0;
+    show_splash();
+    while (1) {
+        JoypadState state = process_joypad(splash_tick);
+        if (state.start.is_just_pressed) {
+            break;
+        }
+        splash_tick++;
+        vsync(); // wait for next frame
+    }
+    hide_splash();
     reset_screen();
+    initialize_random(splash_tick);
 
     initialize_sprites();
     initialize_font();

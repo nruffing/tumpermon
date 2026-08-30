@@ -31,12 +31,18 @@ If unsure whether something rises to that bar, err toward updating it.
   `_cpu == CGB_TYPE` to ever be true at runtime — without it every build silently
   falls back to DMG grayscale, which cost real debugging time early on).
 - `make clean` removes build artifacts (also gitignored) and `obj/`.
-- `make force` runs `clean` then `all` — a full rebuild, for when the
-  incremental build is suspect.
+- `make force` runs `clean`, then `format`, then `all` — a full rebuild
+  (with a clang-format pass first) for when the incremental build is
+  suspect.
 - `make romsize` rebuilds with the linker's `-Wl-m` map-file flag and prints
   actual ROM bytes used out of the 32KB budget (plain file size on the built
   `.gb` always reads 100% with no MBC — the ROM is padded to a fixed size
   regardless of how much is actually used, so it's not useful for this).
+- `make format` runs `clang-format -i` over all `src/*.c`/`.h` (top-level and
+  one subfolder deep) using the same `.clang-format` config the pre-commit
+  hook applies to staged files — use it to format everything at once (e.g.
+  after writing a batch of files) rather than relying on the hook at commit
+  time.
 
 ## Architecture
 
@@ -227,9 +233,84 @@ per enemy.
   indices need to be re-mapped to match**, and any new single-sprite entity
   following this pattern needs the same `-keep_palette_order` + matching
   index order.
-- **`seed_enemies`** (`main.c`) fills a caller-owned `Enemy` array —
-  currently spawns every enemy at the same hardcoded placeholder position
-  (see "Known gaps" below for what's still missing before this is real).
+- **`seed_enemies`** (`main.c`) fills a caller-owned `Enemy` array, spawning
+  every enemy at one random position (`rand_range(MIN_POSITION_X,
+  MAX_POSITION_X)`/Y — see "Randomness" below) — the same random position
+  for all of them, since it's rolled once outside the per-enemy loop (see
+  "Known gaps" below for what's still missing before this is real).
+  **`reset_enemies`** (`main.c`) is the restart-time counterpart to
+  `reset_player`: unlike `seed_enemies`, it rolls an independent random
+  position per enemy (inside the loop) and calls `update_enemy_sprite` to
+  sync each one immediately, since (unlike `seed_enemies`, called before
+  the render loop starts) it runs mid-game, from the pause menu's Restart
+  option (`handle_menu_item_select` in `main.c`).
+
+## Randomness
+
+- **`utils/rand_util.{c,h}`** wraps GBDK's `rand.h` (linear-congruential
+  generator). `initialize_random(seed)` XORs the caller's seed with
+  `DIV_REG` (a free-running hardware timer, sampled once) before calling
+  `initrand`, per `rand.h`'s own suggestion for a non-deterministic seed —
+  called once in `main()` after the splash/start-button wait, seeded with
+  the tick count the player waited on the splash screen (itself
+  non-deterministic, from human reaction time). `rand_range(min, max)` is
+  the inclusive-range helper (`min + randw() % (max - min + 1)`) everything
+  else (enemy spawning) builds on — see kinematics.h's `MIN_POSITION_X`/
+  `MAX_POSITION_X`/etc. below for the values it's called with.
+- **`MIN_POSITION_X`/`MAX_POSITION_X`/`MIN_POSITION_Y`/`MAX_POSITION_Y`**
+  (`kinematics.h`) — the visible screen's bounds in `Position`'s fixed-point
+  units, derived from `gb/drawing.h`'s `GRAPHICS_WIDTH`/`GRAPHICS_HEIGHT`
+  (160x144) shifted by `FIXED_POINT_POSITION_LENGTH`. These are screen
+  bounds, not sprite-safe bounds — they don't subtract an entity's tile
+  size, so `rand_range(MIN_POSITION_X, MAX_POSITION_X)` can place a sprite
+  partially off the right/bottom edge. Fine for now since enemies are only
+  8x8 and the difference is a couple pixels; a caller needing a fully
+  on-screen spawn should subtract that entity's width/height from the max
+  first.
+
+## Behavior trees (`src/behavior/`)
+
+Exploratory: `basic_enemy_behavior_tree` exists but isn't wired to any
+`Enemy` yet (no per-enemy tick call in `process_frame`/`process_enemies`).
+Documented here so the shape is discoverable, not as a finished feature.
+
+- **`node.{c,h}`** — the generic tree machinery, entity-agnostic:
+  - `Node` — `tick` (a `NodeTickFn` function pointer, C's stand-in for a
+    virtual method), `children` (`const Node *const *`, `NULL` for leaves),
+    `child_count`. Always `static const Node`/`static const Node *const []`
+    instances in practice — trees are shared, immutable ROM data (same
+    "value-embed vs. shared const data" split as `MetaspriteRef` — see
+    "Struct composition" below), never allocated (no heap on this
+    platform).
+  - `NodeContext` — the *per-tick* argument bundle (`Context *game_context`,
+    `Enemy *enemy`), separate from `Node` itself so the same const tree can
+    be ticked for every enemy instance without duplicating tree data
+    per-entity.
+  - `selector_tick`/`sequence_tick` — the two composite node behaviors:
+    selector returns the first non-`NODE_FAILURE` child result (OR);
+    sequence returns the first non-`NODE_SUCCESS` child result (AND). Both
+    are plain `NodeTickFn`s themselves, so a selector/sequence node is
+    built the same way a leaf is (`{ .tick = selector_tick, .children =
+    ..., .child_count = ... }`) — no separate node "kind" enum needed.
+- **`enemy_behavior.{c,h}`** (renamed from `enemy_nodes` for clarity) —
+  the concrete tree: `basic_enemy_behavior_tree` is a selector wrapping a
+  `chase_sequence`, currently just gated on one leaf condition,
+  `is_player_close_tick` (`absolute_distance` — Manhattan distance, cheap on
+  this CPU — between `enemy->position` and `game_context->player->position`,
+  against a hardcoded `is_close_distance` threshold). `basic_enemy_behavior_tree`
+  is declared `extern` in the header and defined once in the `.c` file —
+  it's a real (non-tentative) definition, so declaring it without `extern`
+  in a header included by multiple translation units would risk a
+  multiple-definition link error.
+- Leaf tick functions that don't need `self` (single hardcoded condition,
+  no need to inspect their own `children`) still take it, since they must
+  match `NodeTickFn`'s signature — mark it `(void)self;` to avoid an
+  unreferenced-argument warning rather than dropping the parameter.
+- `absolute_distance` (`kinematics.c`/`.h`) — Manhattan distance
+  (`abs_diff` on each axis, summed), not true Euclidean distance —
+  deliberately, since this CPU has no hardware multiply/sqrt and a real
+  distance calculation would be comparatively expensive for a simple
+  proximity check.
 
 ## Conventions / decisions
 
@@ -269,13 +350,20 @@ per enemy.
 
 ## Known gaps / next steps
 
-- **Enemies exist but don't do anything yet.** `seed_enemies` spawns
-  `Context.enemies` at a single hardcoded position (`INITIAL_ENEMY_POSITION_X/Y`
-  in `main.c`) — no per-enemy spawn points, and nothing in `process_frame`
-  calls `apply_enemy_velocity`/`update_enemy_sprite` yet, so enemies are
-  currently inert (positioned, tiled, and paletted, but never moved or
-  re-synced to their sprite after the initial placement in
-  `initialize_enemy`).
+- **Enemies exist but don't move yet.** `seed_enemies` now spawns
+  `Context.enemies` at a random position (see "Randomness" above) rather
+  than a hardcoded one, and `process_enemies`/`reset_enemies` keep each
+  sprite synced to `enemy->position` every frame/on restart — but nothing
+  calls `apply_enemy_velocity` anywhere, so once placed an enemy never
+  actually moves. This is the gap `basic_enemy_behavior_tree` (see
+  "Behavior trees" below) is meant to eventually fill.
+- **`basic_enemy_behavior_tree` (`src/behavior/`) isn't wired to any `Enemy`
+  yet.** Nothing calls `basic_enemy_behavior_tree.tick` — `process_enemies`
+  only calls `update_enemy_sprite`. Needs a per-enemy tick call (passing a
+  `NodeContext` built from that enemy + the game `Context`) and something
+  to actually act on `NODE_SUCCESS` (e.g. an action leaf that calls
+  `apply_enemy_velocity` toward the player) before this does anything
+  visible.
 - **No tracking of how many `Context.enemies` slots are actually active.**
   `Enemy` is value-embedded (`Enemy enemies[MAX_ENEMIES]`), so seeding fewer
   than `MAX_ENEMIES` doesn't leave "empty"/null slots — the untouched tail

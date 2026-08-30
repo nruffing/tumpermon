@@ -9,18 +9,7 @@
 #include "utils/apa_util.h"
 #include "utils/util.h"
 
-void wait_for_start(void)
-{
-    while (1) {
-        JoypadState state = process_joypad(0);
-        if (state.start.is_just_pressed) {
-            break;
-        }
-        vsync(); // wait for next frame
-    }
-}
-
-void splash(void)
+void show_splash(void)
 {
     do_apa_mode();
 
@@ -42,9 +31,10 @@ void splash(void)
     print_centered(title, 5);
     const char *press_start = "Press Start";
     print_centered(press_start, 13);
+}
 
-    wait_for_start();
-
+void hide_splash(void)
+{
     // clean up after ourselves
     end_apa_mode();
     reset_color_pallete();

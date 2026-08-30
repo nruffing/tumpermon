@@ -111,3 +111,15 @@ Velocity compute_velocity_from_joypad(
     Velocity velocity = { .x = vel_x, .y = vel_y };
     return velocity;
 }
+
+static uint16_t abs_diff(uint16_t a, uint16_t b)
+{
+    return a > b ? a - b : b - a;
+}
+
+uint16_t absolute_distance(Position a, Position b)
+{
+    uint16_t dx = abs_diff(a.x, b.x);
+    uint16_t dy = abs_diff(a.y, b.y);
+    return dx + dy;
+}

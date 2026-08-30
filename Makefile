@@ -106,11 +106,22 @@ romsize:	$(CSOURCES) $(ASMSOURCES)
 	used=$$(( 0x$$2 + 0x$$3 )); \
 	printf "ROM used: %d / 32768 bytes (%.1f%%)\n" $$used $$(echo "scale=1; $$used * 100 / 32768" | bc)
 
-# Force a full rebuild (clean, then all) — useful when the incremental
-# build is suspect (e.g. after touching generated obj/res/ output by hand,
-# or GBDK_HOME/toolchain changes make wouldn't otherwise notice).
+# Force a full rebuild (clean, format, then all) — useful when the
+# incremental build is suspect (e.g. after touching generated obj/res/
+# output by hand, or GBDK_HOME/toolchain changes make wouldn't otherwise
+# notice). Formats before building so a build never leaves sources
+# unformatted even if you forget to run `make format` yourself.
 .PHONY: force
-force:	clean all
+force:	clean format all
+
+# Format all project C sources/headers in place with clang-format, using the
+# same .clang-format the pre-commit hook applies to staged files — run this
+# to format everything at once (e.g. after writing a batch of files without
+# committing yet) rather than relying on the hook.
+CFORMATSOURCES := $(wildcard src/*.c src/*/*.c src/*.h src/*/*.h)
+.PHONY: format
+format:
+	clang-format -i $(CFORMATSOURCES)
 
 clean:
 	rm -f *.o *.lst *.map *.gb *.ihx *.sym *.cdb *.adb *.asm *.noi *.rst
