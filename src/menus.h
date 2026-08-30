@@ -4,8 +4,8 @@
 #include "menu.h"
 
 static const MenuOption pause_menu_options[] = {
-    { .label = "Restart" },
     { .label = "Resume" },
+    { .label = "Restart" },
 };
 
 static const Menu pause_menu = {

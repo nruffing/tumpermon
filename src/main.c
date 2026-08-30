@@ -49,15 +49,59 @@ Player create_player(void)
     return player;
 }
 
+void show_menu_on_context(Context *context)
+{
+    context->menu->selected_index = 0;
+    show_menu(context->menu->open_menu, context->menu->selected_index);
+}
+
+void hide_menu_on_context(Context *context)
+{
+    context->menu->open_menu = NULL;
+    hide_menu();
+}
+
 void handle_pause(Context *context)
 {
     if (context->joypad_state.start.is_just_pressed) {
         context->is_paused = !context->is_paused;
         if (context->is_paused) {
-            show_menu(&pause_menu, context->menus->pause_menu_selected_index);
+            context->menu->open_menu = &pause_menu;
+            show_menu_on_context(context);
         } else {
-            hide_menu();
+            hide_menu_on_context(context);
         }
+    }
+}
+
+void handle_menu(Context *context)
+{
+    if (context->menu->open_menu == NULL) {
+        return;
+    }
+
+    if (context->joypad_state.down.is_just_pressed) {
+        if (context->menu->selected_index == context->menu->open_menu->option_count - 1) {
+            return;
+        }
+        uint8_t previous_index = context->menu->selected_index;
+        context->menu->selected_index += 1;
+        select_menu_item(previous_index, context->menu->selected_index);
+    } else if (context->joypad_state.up.is_just_pressed) {
+        if (context->menu->selected_index == 0) {
+            return;
+        }
+        uint8_t previous_index = context->menu->selected_index;
+        context->menu->selected_index -= 1;
+        select_menu_item(previous_index, context->menu->selected_index);
+    } else if (context->joypad_state.select.is_just_pressed) {
+        // same as down but roll around
+        uint8_t previous_index = context->menu->selected_index;
+        context->menu->selected_index =
+            context->menu->selected_index == context->menu->open_menu->option_count - 1
+                ? 0
+                : context->menu->selected_index + 1;
+        select_menu_item(previous_index, context->menu->selected_index);
     }
 }
 
@@ -66,7 +110,9 @@ void process_frame(Context *context)
     context->tick++;
 
     context->joypad_state = process_joypad(context->tick);
+
     handle_pause(context);
+    handle_menu(context);
     if (context->is_paused) {
         return;
     }
@@ -86,10 +132,10 @@ void main(void)
 
     Player player = create_player();
     KinematicBehaviorContext kinematics = { .allow_diagonal_movement = false };
-    MenuContext menus = { .pause_menu_selected_index = 0 };
+    MenuContext menus = { .open_menu = NULL, .selected_index = 0 };
     Context context = { .tick = 0,
                         .is_paused = false,
-                        .menus = &menus,
+                        .menu = &menus,
                         .player = &player,
                         .kinematics = &kinematics };
 

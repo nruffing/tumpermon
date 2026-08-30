@@ -22,7 +22,7 @@ typedef struct Context {
     bool is_paused;
     JoypadState joypad_state;
 
-    MenuContext *menus;
+    MenuContext *menu;
     Player *player;
     KinematicBehaviorContext *kinematics;
 } Context;

@@ -14,10 +14,12 @@ typedef struct Menu {
 } Menu;
 
 typedef struct MenuContext {
-    uint8_t pause_menu_selected_index;
+    const Menu *open_menu;
+    uint8_t selected_index;
 } MenuContext;
 
 void show_menu(const Menu *menu, uint8_t selected_index);
 void hide_menu(void);
+void select_menu_item(uint8_t previous_selected_index, uint8_t current_selected_index);
 
 #endif
