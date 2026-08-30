@@ -31,6 +31,12 @@ If unsure whether something rises to that bar, err toward updating it.
   `_cpu == CGB_TYPE` to ever be true at runtime — without it every build silently
   falls back to DMG grayscale, which cost real debugging time early on).
 - `make clean` removes build artifacts (also gitignored) and `obj/`.
+- `make force` runs `clean` then `all` — a full rebuild, for when the
+  incremental build is suspect.
+- `make romsize` rebuilds with the linker's `-Wl-m` map-file flag and prints
+  actual ROM bytes used out of the 32KB budget (plain file size on the built
+  `.gb` always reads 100% with no MBC — the ROM is padded to a fixed size
+  regardless of how much is actually used, so it's not useful for this).
 
 ## Architecture
 
@@ -40,7 +46,7 @@ Each module is layered so it only knows about the layer directly below it:
 main.c (process_frame)
   → joypad.c        raw joypad() → JoypadState (no knowledge of Player)
   → kinematics.c     JoypadState → Velocity  (compute_velocity_from_joypad)
-  → player.c         Velocity → Player state (apply_velocity), then → sprite (update_player_sprite)
+  → player.c         Velocity → Player state (apply_player_velocity), then → sprite (update_player_sprite)
 ```
 
 - **`kinematics.{c,h}`** — generic, reusable motion primitives: `Position`,
@@ -66,13 +72,14 @@ main.c (process_frame)
   callers including the splash screen). Deliberately has no `Player` dependency.
 - **`context.h`** — `Context`, the per-frame state bundle threaded through
   `main.c`'s loop: `tick`, `is_paused`, a value-embedded `JoypadState
-  joypad_state` (value, not pointer — see "Struct composition" below), and
-  pointers to `Player`/`KinematicBehaviorContext`. `process_frame` populates
-  `joypad_state` and `tick` each frame, then calls `handle_pause` (toggles
-  `is_paused` on `Start`) before doing anything movement-related; when
-  `is_paused` the rest of `process_frame` (velocity/sprite update) is skipped
-  for that frame.
-- **`player.{c,h}`** — the only module that knows about `Player`. `apply_velocity`
+  joypad_state` (value, not pointer — see "Struct composition" below), a
+  value-embedded `Enemy enemies[MAX_ENEMIES]` (same reasoning — see "Enemies"
+  below), and pointers to `Player`/`KinematicBehaviorContext`. `process_frame`
+  populates `joypad_state` and `tick` each frame, then calls `handle_pause`
+  (toggles `is_paused` on `Start`) before doing anything movement-related;
+  when `is_paused` the rest of `process_frame` (velocity/sprite update) is
+  skipped for that frame.
+- **`player.{c,h}`** — the only module that knows about `Player`. `apply_player_velocity`
   mutates position/direction only (no hardware calls); `update_player_sprite` is
   a separate step that pushes state to the sprite (via
   `move_animated_metasprite_to_position`, passing `player->direction` so the
@@ -180,6 +187,50 @@ pieces:
   currently unused by `Player`, but intentionally kept for future single-tile
   entities (e.g. a simple projectile) that don't need the metasprite machinery.
 
+## Enemies
+
+Unlike `Player` (a 2x2-tile `AnimatedMetasprite`), `Enemy` is a single 8x8
+hardware sprite — the simpler path `kinematics.c`'s `move_sprite_to_position`
+was originally kept around for (see "Metasprites" above). `sprites.h` reserves
+its VRAM tile index and OAM slot range the same way it does for the player
+(`ENEMY_TILE_START_INDEX`, `ENEMY_SPRITE_START_SLOT`), just without the
+metasprite metadata machinery since there's only ever one tile/one OAM slot
+per enemy.
+
+- **`enemy.{c,h}`** — `Enemy` (`sprite_num`, `Position`). `initialize_enemy`
+  assigns it an OAM slot (`ENEMY_SPRITE_START_SLOT + enemy_index`) via
+  `set_sprite_tile`. `apply_enemy_velocity`/`update_enemy_sprite` mirror
+  `Player`'s `apply_player_velocity`/`update_player_sprite` split (mutate
+  position, then separately sync the sprite) but are named per-entity rather
+  than shared — C has no function overloading, so `Player` and `Enemy` can't
+  both define a plain `apply_velocity`/`update_sprite` without a link
+  conflict. This is the established convention for any future entity type:
+  `apply_<entity>_velocity`, `update_<entity>_sprite`.
+- **Enemies intentionally reuse the player's CGB object palette** rather than
+  loading their own. `initialize_enemy` calls
+  `set_sprite_prop(sprite_num, OAMF_CGB_PAL0)` instead of ever loading
+  `enemy_palettes` (the palette `obj/res/enemy.h` generates from
+  `res/enemy.png` is unused dead data) — `OAMF_CGB_PAL0` is the same palette
+  slot `update_sprite_pallete(player_palettes)` loads in `main.c`. This means
+  **`res/enemy.png`'s pixel *indices*, not its own colors, are what
+  determine how an enemy renders** — each pixel's index is looked up against
+  `player_palettes` at render time. `res/enemy.png` is authored so its
+  indices line up with `player_palettes`' order (0=white/transparent,
+  1=light gray, 2=dark gray, 3=black) — its Makefile rule passes
+  `-keep_palette_order` specifically so `png2asset` preserves that index
+  order instead of resorting the PNG's palette by color frequency (the
+  default behavior, and what caused a real bug: the majority-color
+  background pixels landed at index 0 — always hardware-transparent for
+  sprites regardless of color — making the circle disappear and the
+  background render in `player_palettes[1]`, light gray). **If
+  `player_palettes`' index order ever changes, `res/enemy.png`'s pixel
+  indices need to be re-mapped to match**, and any new single-sprite entity
+  following this pattern needs the same `-keep_palette_order` + matching
+  index order.
+- **`seed_enemies`** (`main.c`) fills a caller-owned `Enemy` array —
+  currently spawns every enemy at the same hardcoded placeholder position
+  (see "Known gaps" below for what's still missing before this is real).
+
 ## Conventions / decisions
 
 - **Fixed-point position/velocity**, not floats (no FPU on this CPU).
@@ -218,6 +269,23 @@ pieces:
 
 ## Known gaps / next steps
 
+- **Enemies exist but don't do anything yet.** `seed_enemies` spawns
+  `Context.enemies` at a single hardcoded position (`INITIAL_ENEMY_POSITION_X/Y`
+  in `main.c`) — no per-enemy spawn points, and nothing in `process_frame`
+  calls `apply_enemy_velocity`/`update_enemy_sprite` yet, so enemies are
+  currently inert (positioned, tiled, and paletted, but never moved or
+  re-synced to their sprite after the initial placement in
+  `initialize_enemy`).
+- **No tracking of how many `Context.enemies` slots are actually active.**
+  `Enemy` is value-embedded (`Enemy enemies[MAX_ENEMIES]`), so seeding fewer
+  than `MAX_ENEMIES` doesn't leave "empty"/null slots — the untouched tail
+  entries are zero-initialized structs (a quirk of C's designated-initializer
+  rule for the omitted `.enemies` field in `Context context = { ... }`),
+  meaning `sprite_num = 0` — the same OAM slot as `PLAYER_SPRITE_SLOT`. Safe
+  today only because nothing iterates the full `MAX_ENEMIES` range yet; once
+  something does (e.g. a future per-frame enemy update loop), it needs either
+  an explicit active-count field on `Context` or always seeding all
+  `MAX_ENEMIES` slots — see the "Enemies" section above.
 - **Direction-facing is wired up; walk-cycle animation still isn't.**
   `update_player_sprite` → `move_animated_metasprite_to_position` picks the
   right `MetaspriteAnimationFrames` for `player->direction`, but always reads
@@ -251,6 +319,16 @@ pieces:
   despawning, or variable entity counts).
 
 ## SDCC/GBDK gotchas encountered (useful if debugging build warnings)
+
+- **`png2asset` re-sorts a PNG's palette by color frequency by default**,
+  discarding the index order in the PNG's own `PLTE` chunk — pass
+  `-keep_palette_order` to preserve it. This matters whenever pixel *index*
+  (not the PNG's own embedded color) is what determines the rendered color —
+  e.g. `res/enemy.png` deliberately reuses the player's CGB palette slot
+  instead of loading its own (see "Enemies" above); without
+  `-keep_palette_order`, the generic `$(RESOBJDIR)/%.c` pattern rule
+  resorted its colors and silently broke which pixels rendered as which
+  color.
 
 - **Angle brackets (`<foo.h>`) vs quotes (`"foo.h"`)**: project-local headers
   need quotes — angle brackets only search GBDK's system include paths, not

@@ -4,10 +4,13 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "enemy.h"
 #include "joypad.h"
 #include "kinematics.h"
 #include "menu.h"
 #include "player.h"
+
+#define MAX_ENEMIES 4
 
 typedef struct Context {
     // Monotonic frame counter — incremented once per process_frame() call
@@ -25,6 +28,9 @@ typedef struct Context {
     MenuContext *menu;
     Player *player;
     KinematicBehaviorContext *kinematics;
+
+    Enemy enemies[MAX_ENEMIES];
+    uint8_t enemy_count;
 } Context;
 
 #endif

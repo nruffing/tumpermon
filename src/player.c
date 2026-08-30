@@ -42,7 +42,7 @@ Player initialize_player(Position position, Direction direction, AnimatedMetaspr
     return player;
 }
 
-void apply_velocity(Player *player, Velocity velocity)
+void apply_player_velocity(Player *player, Velocity velocity)
 {
     player->position.x += velocity.x;
     player->position.y += velocity.y;

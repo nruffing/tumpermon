@@ -96,7 +96,7 @@ Velocity compute_velocity_from_joypad(
     // When diagonal movement isn't allowed and both axes are active,
     // whichever direction was pressed more recently wins and the other
     // axis is dropped. Ties (tick_diff == 0 — e.g. both held since before
-    // either changed) keep vertical, matching apply_velocity's
+    // either changed) keep vertical, matching apply_player_velocity's
     // facing-priority tie-break in player.c.
     bool both_axes_active = (vel_x != 0) && (vel_y != 0);
     if (!kinematics->allow_diagonal_movement && both_axes_active) {

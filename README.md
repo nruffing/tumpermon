@@ -70,7 +70,9 @@ compile.bat
 ```
 
 Either produces `Tumpermon.gb` in this directory. Run `make clean` to remove
-build artifacts.
+build artifacts, `make force` to force a full rebuild (clean + all), or
+`make romsize` to print how much of the 32KB ROM budget is actually used
+(see `CLAUDE.md`'s Build section — plain file size isn't useful for this).
 
 ## Running
 
@@ -144,8 +146,15 @@ xattr -dr com.apple.quarantine "/Applications/Gameboy Tile Tool.app"
 
 Multi-tile sprites (anything bigger than a single 8x8/8x16 tile — e.g. the
 player) are built as GBDK metasprites, generated from a PNG via `png2asset`.
-Single-tile entities (e.g. a simple projectile) don't need any of this —
-just use `move_sprite_to_position` from `kinematics.h` directly.
+Single-tile entities don't need any of this — `src/enemy.{c,h}` is the
+example to follow: `set_sprite_tile` once at setup to assign a VRAM tile to
+an OAM slot, then `move_sprite_to_position` from `kinematics.h` per frame to
+move it. See `CLAUDE.md`'s "Enemies" section for the full pattern, including
+a palette gotcha worth knowing before adding another single-tile entity: if
+it reuses another entity's CGB palette slot (via `set_sprite_prop`) instead
+of loading its own, its PNG's pixel *indices* — not its own colors — are
+what render, and its `png2asset` Makefile rule needs `-keep_palette_order`
+to keep those indices from being silently resorted.
 
 1. **Create an indexed-color PNG** and drop it in `res/`, e.g. `res/enemy.png`.
    - Must be **indexed/paletted** (not RGB/RGBA) — export as such from your

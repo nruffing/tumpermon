@@ -2,6 +2,7 @@
 #include <stdint.h>
 
 #include "context.h"
+#include "enemy.h"
 #include "joypad.h"
 #include "kinematics.h"
 #include "menu.h"
@@ -10,12 +11,15 @@
 #include "splash.h"
 #include "sprites.h"
 #include "utils/util.h"
+#include <res/enemy.h>
 #include <res/font.h>
 #include <res/player.h>
 
 #define INITIAL_PLAYER_DIRECTION DIRECTION_DOWN
 #define INITIAL_PLAYER_POSITION_X 1216
 #define INITIAL_PLAYER_POSITION_Y 1088
+
+#define ENEMY_COUNT 1
 
 void initialize_player_sprite(void)
 {
@@ -33,6 +37,8 @@ void initialize_sprites(void)
                  // correctly
 
     initialize_player_sprite();
+
+    set_sprite_data(ENEMY_TILE_START_INDEX, enemy_TILE_COUNT, enemy_tiles);
 
     SHOW_SPRITES; // turn on sprites layer, once
 }
@@ -61,6 +67,14 @@ void reset_player(Context *context)
     context->player->position.y = INITIAL_PLAYER_POSITION_Y;
     context->player->direction = INITIAL_PLAYER_DIRECTION;
     update_player_sprite(context->player);
+}
+
+void seed_enemies(Enemy *enemies, uint8_t enemy_count)
+{
+    Position initial_position = { .x = 800, .y = 800 };
+    for (uint8_t i = 0; i < enemy_count; i++) {
+        enemies[i] = initialize_enemy(i, initial_position);
+    }
 }
 
 void show_menu_on_context(Context *context)
@@ -141,6 +155,14 @@ void handle_menu(Context *context)
     blink_menu_cursor(context->menu->selected_index, context->tick);
 }
 
+void process_enemies(Context *context)
+{
+    for (uint8_t i = 0; i < context->enemy_count; i++) {
+        Enemy *enemy = &context->enemies[i];
+        update_enemy_sprite(enemy);
+    }
+}
+
 void process_frame(Context *context)
 {
     context->tick++;
@@ -154,8 +176,10 @@ void process_frame(Context *context)
     }
 
     Velocity velocity = compute_velocity_from_joypad(&context->joypad_state, context->kinematics);
-    apply_velocity(context->player, velocity);
+    apply_player_velocity(context->player, velocity);
     update_player_sprite(context->player);
+
+    process_enemies(context);
 }
 
 void main(void)
@@ -173,7 +197,9 @@ void main(void)
                         .is_paused = false,
                         .menu = &menus,
                         .player = &player,
-                        .kinematics = &kinematics };
+                        .kinematics = &kinematics,
+                        .enemy_count = ENEMY_COUNT };
+    seed_enemies(context.enemies, ENEMY_COUNT);
 
     // Loop forever
     while (1) {

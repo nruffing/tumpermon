@@ -29,7 +29,11 @@
 // banks. FONT_TILE_START_INDEX must not overlap PLAYER_SPRITE_TILE_START_INDEX
 // (..+player_TILE_COUNT); placed right after the player's 12 tiles. Bump this
 // forward (and update the comment) if another sprite claims tiles before it.
+// Font consumes 46 tiles.
 #define FONT_TILE_START_INDEX 12
+
+#define ENEMY_TILE_START_INDEX 58
+#define ENEMY_SPRITE_START_SLOT 4
 
 // base sprite property flags (can be used to set palette, etc)
 #define DEFAULT_METASPRITE_BASE_PROP 0

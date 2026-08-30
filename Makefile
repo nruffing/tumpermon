@@ -68,6 +68,21 @@ $(RESOBJDIR)/font.c:	$(RESDIR)/font.png
 	@mkdir -p $(RESOBJDIR)
 	$(PNG2ASSET) $< -c $@ -map -keep_palette_order -noflip
 
+# res/enemy.png's pixel indices are deliberately authored to line up with
+# player_palettes (obj/res/player.h) — enemy.c reuses the player's CGB
+# palette slot (set_sprite_prop(..., OAMF_CGB_PAL0)) instead of loading
+# enemy_palettes, so the *index* each enemy pixel uses is what picks its
+# color, not enemy_palettes' own (unused) RGB values. -keep_palette_order
+# makes png2asset preserve the PNG's PLTE order/indices as-authored instead
+# of resorting them by color frequency, which is what let this drift when
+# the generic pattern rule was used (majority-color background pixels ended
+# up at index 0 and got rendered transparent — see chat history). If
+# player_palettes' index order ever changes, res/enemy.png's pixel indices
+# need to be re-mapped to match.
+$(RESOBJDIR)/enemy.c:	$(RESDIR)/enemy.png
+	@mkdir -p $(RESOBJDIR)
+	$(PNG2ASSET) $< -spr8x8 -noflip -keep_palette_order -c $@
+
 # Convert metasprite pngs to C source before they're needed as CSOURCES
 $(RESOBJDIR)/%.c:	$(RESDIR)/%.png
 	@mkdir -p $(RESOBJDIR)
@@ -76,6 +91,26 @@ $(RESOBJDIR)/%.c:	$(RESDIR)/%.png
 # Compile and link all source files in a single call to LCC
 $(BINS):	$(CSOURCES) $(ASMSOURCES)
 	$(LCC) $(LCCFLAGS) $(CFLAGS) -o $@ $(CSOURCES) $(ASMSOURCES)
+
+# Same as `all`, but also asks the linker for a .map file and reports how
+# much ROM is actually used. Plain file size on the built .gb isn't useful
+# for this: with no MBC (bank-switching cartridge type), the ROM is always
+# padded to a fixed 32KB regardless of how much of it is actually spoken
+# for, so it always reads 100%. What we want instead is the end address of
+# the last ROM-resident area the linker lays out (_GSFINAL, per the .map's
+# area table) — that's the actual byte count used, from address 0.
+.PHONY: romsize
+romsize:	$(CSOURCES) $(ASMSOURCES)
+	$(LCC) $(LCCFLAGS) $(CFLAGS) -Wl-m -o $(BINS) $(CSOURCES) $(ASMSOURCES)
+	@set -- $$(grep '^_GSFINAL' $(PROJECTNAME).map); \
+	used=$$(( 0x$$2 + 0x$$3 )); \
+	printf "ROM used: %d / 32768 bytes (%.1f%%)\n" $$used $$(echo "scale=1; $$used * 100 / 32768" | bc)
+
+# Force a full rebuild (clean, then all) — useful when the incremental
+# build is suspect (e.g. after touching generated obj/res/ output by hand,
+# or GBDK_HOME/toolchain changes make wouldn't otherwise notice).
+.PHONY: force
+force:	clean all
 
 clean:
 	rm -f *.o *.lst *.map *.gb *.ihx *.sym *.cdb *.adb *.asm *.noi *.rst
