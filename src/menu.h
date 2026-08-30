@@ -21,5 +21,6 @@ typedef struct MenuContext {
 void show_menu(const Menu *menu, uint8_t selected_index);
 void hide_menu(void);
 void select_menu_item(uint8_t previous_selected_index, uint8_t current_selected_index);
+void blink_menu_cursor(uint8_t selected_index, uint16_t tick);
 
 #endif

@@ -1,7 +1,9 @@
 #include "menu.h"
 
 #include <gb/gb.h>
+#include <stdbool.h>
 
+#include "utils/tick_util.h"
 #include "window.h"
 
 // WX (the window's X register, set via move_win's x arg) is offset from
@@ -25,6 +27,10 @@ static uint8_t get_win_position_x(uint8_t pixel_x)
 
 #define MENU_CURSOR_COLUMN_SELECTED ">"
 #define MENU_CURSOR_COLUMN_NOT_SELECTED " "
+
+// How many ticks the cursor stays on/off per half-cycle of its blink — see
+// tick_toggle_state (tick_util.h). ~30 ticks is half a second at ~60fps.
+#define MENU_CURSOR_BLINK_PERIOD_TICKS 30
 
 static uint8_t get_row_for_menu_item_index(uint8_t menu_item_index)
 {
@@ -60,6 +66,16 @@ void select_menu_item(uint8_t previous_selected_index, uint8_t current_selected_
 
     draw_win_text(MENU_CURSOR_COL, previous_row, MENU_CURSOR_COLUMN_NOT_SELECTED);
     draw_win_text(MENU_CURSOR_COL, current_row, MENU_CURSOR_COLUMN_SELECTED);
+}
+
+void blink_menu_cursor(uint8_t selected_index, uint16_t tick)
+{
+    uint8_t row = get_row_for_menu_item_index(selected_index);
+    bool cursor_on = tick_toggle_state(tick, MENU_CURSOR_BLINK_PERIOD_TICKS);
+    draw_win_text(
+        MENU_CURSOR_COL,
+        row,
+        cursor_on ? MENU_CURSOR_COLUMN_SELECTED : MENU_CURSOR_COLUMN_NOT_SELECTED);
 }
 
 void hide_menu(void)

@@ -103,6 +103,8 @@ void handle_menu(Context *context)
                 : context->menu->selected_index + 1;
         select_menu_item(previous_index, context->menu->selected_index);
     }
+
+    blink_menu_cursor(context->menu->selected_index, context->tick);
 }
 
 void process_frame(Context *context)
