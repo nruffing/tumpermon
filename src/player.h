@@ -11,7 +11,7 @@ typedef struct Player {
 } Player;
 
 AnimatedMetasprite create_player_metasprite(void);
-Player initialize_player(Position position, AnimatedMetasprite metasprite);
+Player initialize_player(Position position, Direction direction, AnimatedMetasprite metasprite);
 void apply_velocity(Player *player, Velocity velocity);
 void update_player_sprite(Player *player);
 

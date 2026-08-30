@@ -13,6 +13,10 @@
 #include <res/font.h>
 #include <res/player.h>
 
+#define INITIAL_PLAYER_DIRECTION DIRECTION_DOWN
+#define INITIAL_PLAYER_POSITION_X 1216
+#define INITIAL_PLAYER_POSITION_Y 1088
+
 void initialize_player_sprite(void)
 {
     // load the tile data into VRAM's sprite tile table once
@@ -43,10 +47,20 @@ void initialize_font(void)
 
 Player create_player(void)
 {
-    Position player_initial_position = { .x = 1216, .y = 1088 };
+    Position player_initial_position = { .x = INITIAL_PLAYER_POSITION_X,
+                                         .y = INITIAL_PLAYER_POSITION_Y };
     AnimatedMetasprite metasprite = create_player_metasprite();
-    Player player = initialize_player(player_initial_position, metasprite);
+    Player player =
+        initialize_player(player_initial_position, INITIAL_PLAYER_DIRECTION, metasprite);
     return player;
+}
+
+void reset_player(Context *context)
+{
+    context->player->position.x = INITIAL_PLAYER_POSITION_X;
+    context->player->position.y = INITIAL_PLAYER_POSITION_Y;
+    context->player->direction = INITIAL_PLAYER_DIRECTION;
+    update_player_sprite(context->player);
 }
 
 void show_menu_on_context(Context *context)
@@ -72,6 +86,24 @@ void handle_pause(Context *context)
             hide_menu_on_context(context);
         }
     }
+}
+
+void handle_menu_item_select(Context *context)
+{
+    const Menu *menu = context->menu->open_menu;
+    MenuOption option = menu->options[context->menu->selected_index];
+
+    switch (menu->id) {
+    case PAUSE_MENU_ID:
+        if (option.id == PAUSE_MENU_RESTART_ID) {
+            reset_player(context);
+        }
+        // no state changes required for resume menu option
+        context->is_paused = false;
+        break;
+    }
+
+    hide_menu_on_context(context);
 }
 
 void handle_menu(Context *context)
@@ -102,6 +134,8 @@ void handle_menu(Context *context)
                 ? 0
                 : context->menu->selected_index + 1;
         select_menu_item(previous_index, context->menu->selected_index);
+    } else if (context->joypad_state.a.is_just_pressed) {
+        handle_menu_item_select(context);
     }
 
     blink_menu_cursor(context->menu->selected_index, context->tick);

@@ -4,10 +4,12 @@
 #include <stdint.h>
 
 typedef struct MenuOption {
+    uint8_t id;
     const char *label;
 } MenuOption;
 
 typedef struct Menu {
+    uint8_t id;
     const char *title;
     const MenuOption *options;
     uint8_t option_count;

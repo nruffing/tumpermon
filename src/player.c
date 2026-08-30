@@ -35,9 +35,9 @@ AnimatedMetasprite create_player_metasprite(void)
     return metasprite;
 }
 
-Player initialize_player(Position position, AnimatedMetasprite metasprite)
+Player initialize_player(Position position, Direction direction, AnimatedMetasprite metasprite)
 {
-    Player player = { .metasprite = metasprite, .position = position, .direction = DIRECTION_DOWN };
+    Player player = { .metasprite = metasprite, .position = position, .direction = direction };
     update_player_sprite(&player);
     return player;
 }
