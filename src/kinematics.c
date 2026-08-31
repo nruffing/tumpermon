@@ -123,3 +123,33 @@ uint16_t absolute_distance(Position a, Position b)
     uint16_t dy = abs_diff(a.y, b.y);
     return dx + dy;
 }
+
+PositionDelta position_delta(Position a, Position b)
+{
+    PositionDelta delta = { .dx = a.x - b.x, .dy = a.y - b.y };
+    return delta;
+}
+
+Velocity zero_velocity(void)
+{
+    Velocity zero = { .x = 0, .y = 0 };
+    return zero;
+}
+
+static int16_t axis_velocity_toward(int16_t delta, int16_t speed)
+{
+    if (delta > 0) {
+        return delta < speed ? delta : speed;
+    } else if (delta < 0) {
+        return delta > -speed ? delta : -speed;
+    }
+    return 0;
+}
+
+Velocity velocity_toward_delta(PositionDelta delta, uint16_t speed)
+{
+    int16_t signed_speed = (int16_t)speed;
+    Velocity velocity = { .x = axis_velocity_toward(delta.dx, signed_speed),
+                          .y = axis_velocity_toward(delta.dy, signed_speed) };
+    return velocity;
+}

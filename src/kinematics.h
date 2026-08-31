@@ -49,6 +49,11 @@ typedef struct Velocity {
     int16_t y; // fixed-point; positive = down, negative = up
 } Velocity;
 
+typedef struct PositionDelta {
+    int16_t dx; // fixed-point; positive = right, negative = left
+    int16_t dy; // fixed-point; positive = down, negative = up
+} PositionDelta;
+
 void move_sprite_to_position(uint8_t sprite_num, Position position);
 void move_metasprite_to_position(Metasprite metasprite, Position position);
 void move_animated_metasprite_to_position(
@@ -66,5 +71,15 @@ Velocity compute_velocity_from_joypad(
     const KinematicBehaviorContext *kinematics);
 
 uint16_t absolute_distance(Position a, Position b);
+PositionDelta position_delta(Position a, Position b); // delta relative to `a`
+Velocity zero_velocity(void);
+
+// Velocity of magnitude `speed` per axis, signed to move toward closing
+// `delta` (i.e. applying the result via apply_*_velocity shrinks `delta`
+// toward zero) — e.g. `velocity_toward_delta(position_delta(target,
+// mover), speed)` chases `target` from `mover`. Clamped per-axis so a delta
+// already smaller than `speed` on that axis returns exactly that delta
+// rather than overshooting past zero and oscillating next frame.
+Velocity velocity_toward_delta(PositionDelta delta, uint16_t speed);
 
 #endif

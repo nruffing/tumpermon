@@ -3,8 +3,14 @@
 
 #include <stdint.h>
 
-#include "../context.h"
-#include "../enemy.h"
+// Forward-declared, not #included: NodeContext only ever holds pointers to
+// these, and both Context (context.h) and Enemy (enemy.h) transitively pull
+// in this header (Context via Enemy enemies[MAX_ENEMIES], Enemy via
+// Enemy.behavior_tree) — #including either one back here would be a cycle.
+// A .c file that dereferences game_context/enemy needs to #include the real
+// headers itself.
+struct Context;
+struct Enemy;
 
 typedef enum NodeStatus {
     NODE_RUNNING,
@@ -13,8 +19,8 @@ typedef enum NodeStatus {
 } NodeStatus;
 
 typedef struct NodeContext {
-    Context *game_context;
-    Enemy *enemy;
+    struct Context *game_context;
+    struct Enemy *enemy;
 } NodeContext;
 
 typedef struct Node Node;
@@ -27,7 +33,9 @@ struct Node {
     uint8_t child_count;
 };
 
+// Try each child in order; the first that doesn't fail wins.
 NodeStatus selector_tick(const Node *self, NodeContext *context);
+// Run each child in order; the first that doesn't succeed wins.
 NodeStatus sequence_tick(const Node *self, NodeContext *context);
 
 #endif

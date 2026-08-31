@@ -203,15 +203,22 @@ its VRAM tile index and OAM slot range the same way it does for the player
 metasprite metadata machinery since there's only ever one tile/one OAM slot
 per enemy.
 
-- **`enemy.{c,h}`** — `Enemy` (`sprite_num`, `Position`). `initialize_enemy`
-  assigns it an OAM slot (`ENEMY_SPRITE_START_SLOT + enemy_index`) via
-  `set_sprite_tile`. `apply_enemy_velocity`/`update_enemy_sprite` mirror
-  `Player`'s `apply_player_velocity`/`update_player_sprite` split (mutate
-  position, then separately sync the sprite) but are named per-entity rather
-  than shared — C has no function overloading, so `Player` and `Enemy` can't
-  both define a plain `apply_velocity`/`update_sprite` without a link
-  conflict. This is the established convention for any future entity type:
-  `apply_<entity>_velocity`, `update_<entity>_sprite`.
+- **`enemy.{c,h}`** — `Enemy` (`sprite_num`, `Position`, `Velocity`, and
+  `behavior_tree`, a `const Node *` — see "Behavior trees" below).
+  `initialize_enemy` assigns it an OAM slot (`ENEMY_SPRITE_START_SLOT +
+  enemy_index`) via `set_sprite_tile`, zeroes its velocity, and points
+  `behavior_tree` at `basic_enemy_behavior_tree` (every enemy currently
+  shares the one tree — const ROM data, see "Struct composition" below).
+  Unlike `Player`'s `apply_player_velocity` (which takes a `Velocity`
+  parameter), `apply_enemy_velocity(Enemy *enemy)` takes none — it applies
+  `enemy->velocity`, which the behavior tree sets on `enemy` directly each
+  tick (see "Behavior trees"), rather than a caller computing a `Velocity`
+  and handing it in. `update_enemy_sprite` mirrors `Player`'s
+  `update_player_sprite` (separately syncs the sprite after position is
+  settled). Named per-entity (`apply_<entity>_velocity`,
+  `update_<entity>_sprite`) rather than shared, since C has no function
+  overloading and `Player`/`Enemy` can't both define a plain
+  `apply_velocity`/`update_sprite` without a link conflict.
 - **Enemies intentionally reuse the player's CGB object palette** rather than
   loading their own. `initialize_enemy` calls
   `set_sprite_prop(sprite_num, OAMF_CGB_PAL0)` instead of ever loading
@@ -270,9 +277,11 @@ per enemy.
 
 ## Behavior trees (`src/behavior/`)
 
-Exploratory: `basic_enemy_behavior_tree` exists but isn't wired to any
-`Enemy` yet (no per-enemy tick call in `process_frame`/`process_enemies`).
-Documented here so the shape is discoverable, not as a finished feature.
+Live: `process_enemies` (`main.c`) ticks each enemy's `behavior_tree` every
+frame, then applies whatever velocity the tick set. A diagram of the
+current tree lives in `src/behavior/enemy_behavior.md` (Mermaid — needs a
+preview extension like `bierner.markdown-mermaid`, since VS Code's built-in
+Markdown preview doesn't render Mermaid on its own).
 
 - **`node.{c,h}`** — the generic tree machinery, entity-agnostic:
   - `Node` — `tick` (a `NodeTickFn` function pointer, C's stand-in for a
@@ -282,35 +291,62 @@ Documented here so the shape is discoverable, not as a finished feature.
     "value-embed vs. shared const data" split as `MetaspriteRef` — see
     "Struct composition" below), never allocated (no heap on this
     platform).
-  - `NodeContext` — the *per-tick* argument bundle (`Context *game_context`,
-    `Enemy *enemy`), separate from `Node` itself so the same const tree can
-    be ticked for every enemy instance without duplicating tree data
-    per-entity.
+  - `NodeContext` — the *per-tick* argument bundle: `struct Context
+    *game_context`, `struct Enemy *enemy`. Deliberately forward-declares
+    `struct Context`/`struct Enemy` rather than `#include`-ing `context.h`/
+    `enemy.h` — both of those transitively pull in `node.h` already
+    (`Context` via `Enemy enemies[MAX_ENEMIES]`, `Enemy` via
+    `Enemy.behavior_tree`), so including either back here is a real cycle,
+    not just redundant. Since `NodeContext` only ever holds pointers, the
+    forward declarations are enough for `node.h` itself; a `.c` file that
+    actually dereferences `game_context`/`enemy` (e.g. `enemy_behavior.c`)
+    has to `#include "../context.h"`/`"../enemy.h"` itself to see the full
+    definitions. This bit a real build (`context.h:32: syntax error ...
+    'Enemy'`) before the forward-declare fix — worth remembering if a
+    similar "type unexpectedly incomplete" error shows up after adding a
+    new cross-reference between `Node` and game state.
   - `selector_tick`/`sequence_tick` — the two composite node behaviors:
     selector returns the first non-`NODE_FAILURE` child result (OR);
     sequence returns the first non-`NODE_SUCCESS` child result (AND). Both
     are plain `NodeTickFn`s themselves, so a selector/sequence node is
     built the same way a leaf is (`{ .tick = selector_tick, .children =
     ..., .child_count = ... }`) — no separate node "kind" enum needed.
-- **`enemy_behavior.{c,h}`** (renamed from `enemy_nodes` for clarity) —
-  the concrete tree: `basic_enemy_behavior_tree` is a selector wrapping a
-  `chase_sequence`, currently just gated on one leaf condition,
-  `is_player_close_tick` (`absolute_distance` — Manhattan distance, cheap on
-  this CPU — between `enemy->position` and `game_context->player->position`,
-  against a hardcoded `is_close_distance` threshold). `basic_enemy_behavior_tree`
-  is declared `extern` in the header and defined once in the `.c` file —
-  it's a real (non-tentative) definition, so declaring it without `extern`
-  in a header included by multiple translation units would risk a
-  multiple-definition link error.
-- Leaf tick functions that don't need `self` (single hardcoded condition,
-  no need to inspect their own `children`) still take it, since they must
-  match `NodeTickFn`'s signature — mark it `(void)self;` to avoid an
-  unreferenced-argument warning rather than dropping the parameter.
-- `absolute_distance` (`kinematics.c`/`.h`) — Manhattan distance
-  (`abs_diff` on each axis, summed), not true Euclidean distance —
-  deliberately, since this CPU has no hardware multiply/sqrt and a real
-  distance calculation would be comparatively expensive for a simple
-  proximity check.
+- **`enemy_behavior.{c,h}`** (renamed from `enemy_nodes` for clarity) — the
+  concrete tree, `basic_enemy_behavior_tree` (see `enemy_behavior.md` for
+  the diagram): a root selector wrapping `chase_sequence_node`, a sequence
+  of `[is_player_close_fallback_node, chase_node]`. `is_player_close_fallback_node`
+  is itself a selector over `[is_player_close_node, stop_node]` — i.e. "if
+  the player's close, succeed (falling through to chase); otherwise fall
+  back to `stop_node`, which zeroes `enemy->velocity` and returns
+  `NODE_RUNNING`" (so the sequence still halts there rather than reaching
+  `chase_node`). `chase_node` sets `enemy->velocity` via
+  `velocity_toward_delta(position_delta(player->position,
+  enemy->position), ENEMY_VELOCITY)` (see kinematics.h) — a leaf that
+  mutates state and returns `NODE_RUNNING` is this tree's action-node
+  pattern, distinct from `is_player_close_tick`'s pure condition (reads
+  state, returns `NODE_SUCCESS`/`NODE_FAILURE`, never mutates).
+  `basic_enemy_behavior_tree` is declared `extern` in the header and
+  defined once in the `.c` file — it's a real (non-tentative) definition,
+  so declaring it without `extern` in a header included by multiple
+  translation units would risk a multiple-definition link error.
+- Leaf tick functions that don't need `self` (no need to inspect their own
+  `children`) still take it, since they must match `NodeTickFn`'s
+  signature — mark it `(void)self;` to avoid an unreferenced-argument
+  warning rather than dropping the parameter.
+- `absolute_distance`/`position_delta`/`velocity_toward_delta`
+  (`kinematics.c`/`.h`) — the primitives condition/action leaves build on.
+  `absolute_distance` is Manhattan distance (`abs_diff` per axis, summed),
+  not true Euclidean, deliberately: no hardware multiply/sqrt on this CPU,
+  so a real distance calc would be comparatively expensive for a simple
+  proximity check. `position_delta(a, b)` returns `a - b` per axis (a
+  `PositionDelta`, not a `Position` — can be negative, unlike `Position`'s
+  `uint16_t` fields). `velocity_toward_delta(delta, speed)` turns that into
+  a `Velocity` sized `speed` per axis but signed to close the delta,
+  clamped so a delta already smaller than `speed` on an axis returns
+  exactly that delta rather than overshooting past zero — see its doc
+  comment in `kinematics.h` for the "per-axis independent, not normalized"
+  caveat (same diagonal-speed limitation as `compute_velocity_from_joypad`,
+  see Known gaps).
 
 ## Conventions / decisions
 
@@ -350,20 +386,15 @@ Documented here so the shape is discoverable, not as a finished feature.
 
 ## Known gaps / next steps
 
-- **Enemies exist but don't move yet.** `seed_enemies` now spawns
-  `Context.enemies` at a random position (see "Randomness" above) rather
-  than a hardcoded one, and `process_enemies`/`reset_enemies` keep each
-  sprite synced to `enemy->position` every frame/on restart — but nothing
-  calls `apply_enemy_velocity` anywhere, so once placed an enemy never
-  actually moves. This is the gap `basic_enemy_behavior_tree` (see
-  "Behavior trees" below) is meant to eventually fill.
-- **`basic_enemy_behavior_tree` (`src/behavior/`) isn't wired to any `Enemy`
-  yet.** Nothing calls `basic_enemy_behavior_tree.tick` — `process_enemies`
-  only calls `update_enemy_sprite`. Needs a per-enemy tick call (passing a
-  `NodeContext` built from that enemy + the game `Context`) and something
-  to actually act on `NODE_SUCCESS` (e.g. an action leaf that calls
-  `apply_enemy_velocity` toward the player) before this does anything
-  visible.
+- **Enemies chase the player, but the tree is still minimal.** `process_enemies`
+  ticks each enemy's `behavior_tree`, applies the velocity it set, then
+  syncs the sprite — a real loop end to end (see "Behavior trees" above).
+  What's still missing: no wander/idle behavior when the player isn't
+  close (the "not close" branch just stops, doesn't do anything else), no
+  cooldown/hysteresis at the `is_close_distance` boundary (an enemy right
+  at that edge can flicker between chasing and stopping frame to frame),
+  and every enemy shares the exact same tree/thresholds (no per-enemy
+  variation).
 - **No tracking of how many `Context.enemies` slots are actually active.**
   `Enemy` is value-embedded (`Enemy enemies[MAX_ENEMIES]`), so seeding fewer
   than `MAX_ENEMIES` doesn't leave "empty"/null slots — the untouched tail
@@ -385,12 +416,13 @@ Documented here so the shape is discoverable, not as a finished feature.
   `METASPRITE_MAX_ANIMATION_FRAMES`'s "pad with idle" convention), (2) an
   animation-frame/timer pair on `Player` (an earlier attempt at this lived on
   `Player` as `animation_frame`/`animation_timer`, advanced in a dedicated
-  `update_player_animation` step between `apply_velocity` and
+  `update_player_animation` step between `apply_player_velocity` and
   `update_player_sprite` — reasonable shape, just reverted because it was
   built before direction-facing existed and animated off velocity alone), and
   (3) `move_animated_metasprite_to_position` (or its caller) indexing
   `refs[animation_frame]` instead of the hardcoded `refs[0]`.
-- **No collision detection** — `apply_velocity` applies velocity unconditionally.
+- **No collision detection** — `apply_player_velocity`/`apply_enemy_velocity`
+  apply velocity unconditionally.
   Planned approach (see Architecture above): candidate position → resolve
   against world (per-axis, not combined, to allow wall-sliding) → commit →
   sync sprite. Not yet implemented.

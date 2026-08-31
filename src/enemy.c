@@ -2,6 +2,8 @@
 
 #include <gb/gb.h>
 
+#include "behavior/enemy_behavior.h"
+
 Enemy initialize_enemy(uint8_t enemy_index, Position position)
 {
     uint8_t sprite_num = ENEMY_SPRITE_START_SLOT + enemy_index;
@@ -14,14 +16,18 @@ Enemy initialize_enemy(uint8_t enemy_index, Position position)
     // left over from reset/hardware init.
     set_sprite_prop(sprite_num, OAMF_CGB_PAL0);
 
-    Enemy enemy = { .sprite_num = sprite_num, .position = position };
+    Velocity stationary = { .x = DEFAULT_ENEMY_VELOCITY_X, .y = DEFAULT_ENEMY_VELOCITY_Y };
+    Enemy enemy = { .sprite_num = sprite_num,
+                    .position = position,
+                    .velocity = stationary,
+                    .behavior_tree = &basic_enemy_behavior_tree };
     return enemy;
 }
 
-void apply_enemy_velocity(Enemy *enemy, Velocity velocity)
+void apply_enemy_velocity(Enemy *enemy)
 {
-    enemy->position.x += velocity.x;
-    enemy->position.y += velocity.y;
+    enemy->position.x += enemy->velocity.x;
+    enemy->position.y += enemy->velocity.y;
 }
 
 void update_enemy_sprite(Enemy *enemy)

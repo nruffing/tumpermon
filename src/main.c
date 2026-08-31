@@ -20,7 +20,7 @@
 #define INITIAL_PLAYER_POSITION_X 1216
 #define INITIAL_PLAYER_POSITION_Y 1088
 
-#define ENEMY_COUNT 1
+#define ENEMY_COUNT 2
 
 void initialize_player_sprite(void)
 {
@@ -72,9 +72,9 @@ void reset_player(Context *context)
 
 void seed_enemies(Enemy *enemies, uint8_t enemy_count)
 {
-    Position initial_position = { .x = rand_range(MIN_POSITION_X, MAX_POSITION_X),
-                                  .y = rand_range(MIN_POSITION_Y, MAX_POSITION_Y) };
     for (uint8_t i = 0; i < enemy_count; i++) {
+        Position initial_position = { .x = rand_range(MIN_POSITION_X, MAX_POSITION_X),
+                                      .y = rand_range(MIN_POSITION_Y, MAX_POSITION_Y) };
         enemies[i] = initialize_enemy(i, initial_position);
     }
 }
@@ -172,6 +172,9 @@ void process_enemies(Context *context)
 {
     for (uint8_t i = 0; i < context->enemy_count; i++) {
         Enemy *enemy = &context->enemies[i];
+        NodeContext node_context = { .game_context = context, .enemy = enemy };
+        enemy->behavior_tree->tick(enemy->behavior_tree, &node_context);
+        apply_enemy_velocity(enemy);
         update_enemy_sprite(enemy);
     }
 }
@@ -217,13 +220,14 @@ void main(void)
     Player player = create_player();
     KinematicBehaviorContext kinematics = { .allow_diagonal_movement = false };
     MenuContext menus = { .open_menu = NULL, .selected_index = 0 };
+    uint8_t enemy_count = ENEMY_COUNT > MAX_ENEMIES ? MAX_ENEMIES : ENEMY_COUNT;
     Context context = { .tick = 0,
                         .is_paused = false,
                         .menu = &menus,
                         .player = &player,
                         .kinematics = &kinematics,
-                        .enemy_count = ENEMY_COUNT };
-    seed_enemies(context.enemies, ENEMY_COUNT);
+                        .enemy_count = enemy_count };
+    seed_enemies(context.enemies, enemy_count);
 
     // Loop forever
     while (1) {
