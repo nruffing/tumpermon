@@ -1,4 +1,5 @@
 #include <gb/gb.h>
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "context.h"
@@ -10,8 +11,10 @@
 #include "player.h"
 #include "splash.h"
 #include "sprites.h"
+#include "utils/int_util.h"
 #include "utils/rand_util.h"
 #include "utils/util.h"
+#include "window.h"
 #include <res/enemy.h>
 #include <res/font.h>
 #include <res/player.h>
@@ -19,6 +22,9 @@
 #define INITIAL_PLAYER_DIRECTION DIRECTION_DOWN
 #define INITIAL_PLAYER_POSITION_X 1216
 #define INITIAL_PLAYER_POSITION_Y 1088
+
+#define STATUS_WINDOW_CHAR_WIDTH 3
+#define STATUS_WINDOW_PADDING_PX 2
 
 #define ENEMY_COUNT 2
 
@@ -50,6 +56,21 @@ void initialize_font(void)
     // pool at FONT_TILE_START_INDEX (sprites.h) once, before any
     // draw_win_text call.
     set_win_data(FONT_TILE_START_INDEX, font_TILE_COUNT, font_tiles);
+}
+
+void initialize_status_window(void)
+{
+    move_win_single_row_top_right(STATUS_WINDOW_CHAR_WIDTH, STATUS_WINDOW_PADDING_PX);
+}
+
+void update_status_menu(Context *context, bool force)
+{
+    if (!force && context->player->hit_points == context->player->previous_frame.hit_points) {
+        return;
+    }
+    char hit_points_text[UINT8_TO_STR_BUFFER_SIZE];
+    uint8_to_padded3(context->player->hit_points, hit_points_text);
+    draw_win_text(0, 0, hit_points_text);
 }
 
 Player create_player(void)
@@ -99,6 +120,8 @@ void hide_menu_on_context(Context *context)
 {
     context->menu->open_menu = NULL;
     hide_menu();
+    initialize_status_window();
+    update_status_menu(context, true);
 }
 
 void handle_pause(Context *context)
@@ -196,6 +219,10 @@ void process_frame(Context *context)
     update_player_sprite(context->player);
 
     process_enemies(context);
+
+    update_status_menu(context, false);
+
+    update_player_previous_frame_state(context->player);
 }
 
 void main(void)
@@ -216,6 +243,8 @@ void main(void)
 
     initialize_sprites();
     initialize_font();
+    initialize_win();
+    initialize_status_window();
 
     Player player = create_player();
     KinematicBehaviorContext kinematics = { .allow_diagonal_movement = false };

@@ -37,7 +37,12 @@ AnimatedMetasprite create_player_metasprite(void)
 
 Player initialize_player(Position position, Direction direction, AnimatedMetasprite metasprite)
 {
-    Player player = { .metasprite = metasprite, .position = position, .direction = direction };
+    PlayerPreviousFrame previous_frame = { .hit_points = 0 };
+    Player player = { .metasprite = metasprite,
+                      .position = position,
+                      .direction = direction,
+                      .hit_points = INITIAL_PLAYER_HIT_POINT,
+                      .previous_frame = previous_frame };
     update_player_sprite(&player);
     return player;
 }
@@ -63,4 +68,10 @@ void apply_player_velocity(Player *player, Velocity velocity)
 void update_player_sprite(Player *player)
 {
     move_animated_metasprite_to_position(player->metasprite, player->position, player->direction);
+}
+
+void update_player_previous_frame_state(Player *player)
+{
+    PlayerPreviousFrame previous_frame = { .hit_points = player->hit_points };
+    player->previous_frame = previous_frame;
 }

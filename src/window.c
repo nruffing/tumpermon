@@ -9,6 +9,21 @@
 #define WINDOW_TILE_COLUMNS 20
 #define WINDOW_TILE_ROWS 18
 
+#define WINDOW_TILE_WIDTH_PX 8
+
+void initialize_win(void)
+{
+    HIDE_WIN;
+    move_win_fullscreen();
+    clear_win();
+    SHOW_WIN;
+}
+
+void move_win_fullscreen(void)
+{
+    move_win(get_win_position_x(0), 0);
+}
+
 void clear_win(void)
 {
     uint8_t blank_tile = char_to_font_tile(' ');
@@ -19,6 +34,11 @@ void clear_win(void)
     }
 }
 
+uint8_t get_win_position_x(uint8_t pixel_x)
+{
+    return pixel_x + WX_SCREEN_ORIGIN_OFFSET;
+}
+
 void draw_win_text(uint8_t x, uint8_t y, const char *text)
 {
     while (*text) {
@@ -26,4 +46,11 @@ void draw_win_text(uint8_t x, uint8_t y, const char *text)
         x++;
         text++;
     }
+}
+
+void move_win_single_row_top_right(uint8_t width, uint8_t padding_px)
+{
+    uint8_t clamped_width = width > WINDOW_TILE_COLUMNS ? WINDOW_TILE_COLUMNS : width;
+    uint8_t tile_x = WINDOW_TILE_COLUMNS - clamped_width;
+    move_win(get_win_position_x(tile_x * WINDOW_TILE_WIDTH_PX - padding_px), padding_px);
 }

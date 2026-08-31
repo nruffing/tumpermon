@@ -110,7 +110,20 @@ main.c (process_frame)
 - **`utils/`** — `util.c` (CGB detection, background/sprite palette load+reset,
   VRAM/screen reset), `apa_util.c` (APA mode enter/exit, centered-text helpers),
   `metasprite_util.c` (`pad_metasprite_animation_frames`, see "Metasprites"
-  below).
+  below), `rand_util.c` (see "Randomness" below), `int_util.c`
+  (`uint8_to_padded3`, see "HUD / status window" below).
+- **`window.{c,h}`** — the window-layer primitives shared by both the pause
+  menu (`menu.c`) and the status HUD (`main.c`): `get_win_position_x`
+  (screen-pixel → `WX` register conversion, see "Conventions" below for the
+  `+7` hardware offset), `move_win_fullscreen`/`move_win_single_row_top_right`
+  (position the window's origin), `clear_win`/`draw_win_text` (content), and
+  `initialize_win` (turns the window on once at startup — `HIDE_WIN` →
+  `move_win_fullscreen` → `clear_win` → `SHOW_WIN` — and it stays on for the
+  rest of the game; nothing calls `HIDE_WIN`/`SHOW_WIN` again after this).
+  Pulled out of `menu.c` specifically so the status HUD didn't need to
+  duplicate `get_win_position_x`'s offset math — see "HUD / status window"
+  below for how the two share (and currently conflict over) the one window
+  layer.
 
 ## Metasprites
 
@@ -275,6 +288,46 @@ per enemy.
   on-screen spawn should subtract that entity's width/height from the max
   first.
 
+## HUD / status window
+
+`Player.hit_points` (`player.h`, `uint8_t`, starts at `INITIAL_PLAYER_HIT_POINT`
+= 100) is displayed via the window layer, in the screen's top-right corner:
+
+- **`main.c`**: `initialize_status_window` positions the window as a
+  `STATUS_WINDOW_CHAR_WIDTH` (3) -tile-wide row flush against the top-right
+  corner, offset `STATUS_WINDOW_PADDING_PX` (2px) in from the edge, via
+  `move_win_single_row_top_right`. `update_status_menu(context, force)`
+  formats `hit_points` and draws it at window-tile `(0, 0)` — skipping the
+  draw when `!force && hit_points == player->previous_frame.hit_points`, so
+  a per-frame call (`process_frame` passes `force = false`) is a no-op
+  unless the value actually changed that frame.
+- **`Player.previous_frame`** (`PlayerPreviousFrame { hit_points }`) is
+  what `update_status_menu`'s change check compares against.
+  `update_player_previous_frame_state` (`player.c`) snapshots the current
+  `hit_points` into it — called once per frame in `process_frame`, *after*
+  `update_status_menu`, so the comparison always sees last frame's value
+  until this call catches it up.
+- **`utils/int_util.{c,h}`**: `uint8_to_padded3(val, out)` hand-rolls the
+  `uint8_t` → fixed-width decimal conversion rather than going through
+  `uitoa` + `strlen` + `strcpy` + a pad loop — since the input range (0-255)
+  and output width (always exactly 3 chars) are both fixed and small, the
+  padding falls directly out of two divisions (`val / 100`, `remainder /
+  10`) with no need to measure a variable-length result afterward, and no
+  `string.h` dependency. `out` must be at least `UINT8_TO_STR_BUFFER_SIZE`
+  (4) bytes. Right-aligns with leading spaces (`5` → `"  5"`, `42` →
+  `" 42"`, `105` → `"105"`) — the `hundreds || tens` check on the tens
+  digit means a value like 105 still renders its `0` tens digit instead of
+  leaving a gap.
+- **Shares the one window layer with the pause menu, and re-asserts its
+  position on resume.** `move_win_single_row_top_right`/
+  `move_win_fullscreen` both just reposition the same window — there's only
+  ever one on this hardware. `show_menu` moves it fullscreen for the menu;
+  `hide_menu_on_context` (`main.c`, not `hide_menu` itself) is what moves it
+  back — it calls `hide_menu()` then `initialize_status_window()` then
+  `update_status_menu(context, true)` (forced, since the window was just
+  repositioned/cleared and needs a real redraw regardless of whether
+  `hit_points` changed while paused).
+
 ## Behavior trees (`src/behavior/`)
 
 Live: `process_enemies` (`main.c`) ticks each enemy's `behavior_tree` every
@@ -437,6 +490,12 @@ Markdown preview doesn't render Mermaid on its own).
   inert** — correct and scoped per-entity (see "Metasprites" above), but has
   nothing to do until sprite counts actually vary frame-to-frame (animation,
   despawning, or variable entity counts).
+- **Nothing decrements `Player.hit_points` yet** — the HUD renders it, and
+  `INITIAL_PLAYER_HIT_POINT` is set, but there's no damage source (no
+  collision detection — see above) or any other path that changes it. (Note
+  `reset_player`/`reset_enemies` also don't reset `hit_points` back to
+  `INITIAL_PLAYER_HIT_POINT` on restart — moot for now since nothing changes
+  it, but worth remembering once something does.)
 
 ## SDCC/GBDK gotchas encountered (useful if debugging build warnings)
 
