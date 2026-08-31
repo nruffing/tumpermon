@@ -5,6 +5,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define SPRITE_TILE_SIZE_PX 8
+
 // move_sprite() coordinates are offset — the hardware reserves an 8px/16px
 // margin for sprites scrolling on/off the top and left edges, so x=8, y=16
 // is actually the sprite's top-left visible at screen (0,0).

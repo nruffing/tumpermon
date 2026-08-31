@@ -35,13 +35,19 @@ AnimatedMetasprite create_player_metasprite(void)
     return metasprite;
 }
 
+PlayerPreviousFrame create_initial_player_previous_frame(void)
+{
+    PlayerPreviousFrame previous_frame = { .hit_points = INITIAL_PREVIOUS_FRAME_PLAYER_HIT_POINTS };
+    return previous_frame;
+}
+
 Player initialize_player(Position position, Direction direction, AnimatedMetasprite metasprite)
 {
-    PlayerPreviousFrame previous_frame = { .hit_points = 0 };
+    PlayerPreviousFrame previous_frame = create_initial_player_previous_frame();
     Player player = { .metasprite = metasprite,
                       .position = position,
                       .direction = direction,
-                      .hit_points = INITIAL_PLAYER_HIT_POINT,
+                      .hit_points = INITIAL_PLAYER_HIT_POINTS,
                       .previous_frame = previous_frame };
     update_player_sprite(&player);
     return player;
@@ -65,6 +71,15 @@ void apply_player_velocity(Player *player, Velocity velocity)
     }
 }
 
+void apply_player_damage(Player *player, uint8_t hit_points)
+{
+    if (hit_points > player->hit_points) {
+        player->hit_points = 0;
+    } else {
+        player->hit_points -= hit_points;
+    }
+}
+
 void update_player_sprite(Player *player)
 {
     move_animated_metasprite_to_position(player->metasprite, player->position, player->direction);
@@ -74,4 +89,13 @@ void update_player_previous_frame_state(Player *player)
 {
     PlayerPreviousFrame previous_frame = { .hit_points = player->hit_points };
     player->previous_frame = previous_frame;
+}
+
+Position get_player_sprite_top_left_position(Player *player)
+{
+    uint16_t half_width = pixel_to_fixed_point(PLAYER_SPRITE_WIDTH_PX / 2);
+    uint16_t half_height = pixel_to_fixed_point(PLAYER_SPRITE_HEIGHT_PX / 2);
+    Position top_left = { .x = player->position.x - half_width,
+                          .y = player->position.y - half_height };
+    return top_left;
 }

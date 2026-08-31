@@ -89,12 +89,15 @@ main.c (process_frame)
   mutates position/direction only (no hardware calls); `update_player_sprite` is
   a separate step that pushes state to the sprite (via
   `move_animated_metasprite_to_position`, passing `player->direction` so the
-  right facing renders). Kept separate on purpose — when collision
-  detection is added, it belongs *between* these two calls (resolve collision
-  against the candidate position before committing state, then sync the sprite
-  once) rather than mutate-then-revert. Also defines `create_player_metasprite`
-  (see "Metasprites" below), which builds the player's `AnimatedMetasprite`
-  once at startup.
+  right facing renders). Kept separate on purpose — movement-*blocking*
+  collision (walls, solid entities), still not implemented, belongs *between*
+  these two calls when it lands (resolve against the candidate position
+  before committing state, then sync the sprite once) rather than
+  mutate-then-revert; this is distinct from the contact-*damage* collision
+  that already exists (see "Collision / combat" below), which runs later in
+  `process_frame` and never touches position. Also defines
+  `create_player_metasprite` (see "Metasprites" below), which builds the
+  player's `AnimatedMetasprite` once at startup.
 - **`sprites.{h}`** — VRAM tile index / OAM slot constants (`PLAYER_SPRITE_SLOT`,
   `PLAYER_SPRITE_TILE_START_INDEX`, `PLAYER_SPRITE_MAX_COUNT`), kept separate
   from `.c` files so slot/tile assignments across entities are easy to see as
@@ -290,7 +293,7 @@ per enemy.
 
 ## HUD / status window
 
-`Player.hit_points` (`player.h`, `uint8_t`, starts at `INITIAL_PLAYER_HIT_POINT`
+`Player.hit_points` (`player.h`, `uint8_t`, starts at `INITIAL_PLAYER_HIT_POINTS`
 = 100) is displayed via the window layer, in the screen's top-right corner:
 
 - **`main.c`**: `initialize_status_window` positions the window as a
@@ -327,6 +330,65 @@ per enemy.
   `update_status_menu(context, true)` (forced, since the window was just
   repositioned/cleared and needs a real redraw regardless of whether
   `hit_points` changed while paused).
+
+## Collision / combat
+
+Player-enemy contact deals damage — this is **contact damage only**: it
+doesn't block movement, resolve overlap, or apply knockback, and lives
+entirely in `main.c`, not in `player.c`/`enemy.c`'s velocity-application
+code (see the `player.c` bullet in Architecture above for the distinction
+from movement-blocking collision, which still doesn't exist).
+
+- **`aabb_overlaps`** (`kinematics.{c,h}`) — axis-aligned bounding box
+  overlap test, entity-agnostic like `absolute_distance`/`position_delta`.
+  Takes each entity's top-left `Position` plus a raw-pixel `uint8_t`
+  width/height (converted to fixed-point internally via
+  `pixel_to_fixed_point`, so callers pass a plain size constant like
+  `PLAYER_SPRITE_WIDTH_PX` directly), plus a trailing `buffer_px` that
+  insets both boxes by that many pixels per side before testing — the boxes
+  need to overlap by more than `2 * buffer_px` combined before it returns
+  true, so a shallow edge-graze doesn't register as a hit. No
+  multiply/divide needed (just addition/comparison), unlike a true
+  Euclidean check — cheap on this CPU, same reasoning as
+  `absolute_distance`'s Manhattan distance.
+- **`fixed_point_to_pixel`/`pixel_to_fixed_point`** (`kinematics.{c,h}`) —
+  now public (were `static` inside `kinematics.c`; `fixed_point_to_pixel`
+  existed already, `pixel_to_fixed_point` is its new inverse), since
+  `aabb_overlaps` and `get_player_sprite_top_left_position` (below) both
+  need the pixel→fixed-point conversion outside `kinematics.c`.
+  `fixed_point_to_pixel` truncates (no rounding — rendering needs whole
+  coordinates); `pixel_to_fixed_point` is exact (every raw pixel maps to a
+  whole number of fixed-point units, no precision loss).
+- **`get_player_sprite_top_left_position`** (`player.c`) — `player->position`
+  is the metasprite's *center* anchor, not its top-left (the generated
+  metasprite's tile offsets range `+-half the player's size` from it — see
+  `obj/res/player.c`'s `METASPR_ITEM` offsets), but `aabb_overlaps` needs a
+  top-left corner. Derives the correction from `PLAYER_SPRITE_WIDTH_PX`/
+  `PLAYER_SPRITE_HEIGHT_PX` (`player.h`, the player's own composed size),
+  not `SPRITE_TILE_SIZE_PX` (`sprites.h`, the hardware's fixed single-tile
+  size) — those happen to give the same answer today since the player's
+  metasprite is a 2x2-tile square, but only the former stays correct if
+  that composition ever changes. (`Enemy` doesn't need an equivalent
+  function — a single hardware sprite's `Position` is already its top-left,
+  no metasprite anchor offset involved.)
+- **`Enemy.collision`** (`enemy.h`) — a `Collision { bool is_collided;
+  uint16_t collided_at_tick; }`, zero-initialized like the rest of `Enemy`
+  (see "Struct composition" below). `is_collided` edge-detects contact the
+  same way `InputState.is_just_pressed` edge-detects a button press:
+  **`process_player_enemy_collisions`** (`main.c`, called from
+  `process_frame` after `process_enemies`) only calls `apply_player_damage`
+  the frame contact *begins* (`!enemy->collision.is_collided` going true),
+  not every frame the two stay overlapped — so standing inside an enemy
+  deals one hit, not continuous drain. `collided_at_tick` is recorded but
+  not read anywhere yet — a natural spot for a future damage cooldown/
+  invulnerability window instead of this once-per-distinct-contact model.
+- **`apply_player_damage(player, hit_points)`** (`player.c`) — subtracts,
+  clamped at 0 (checks `hit_points > player->hit_points` first rather than
+  letting the `uint8_t` subtraction wrap around negative).
+- `ENEMY_DAMAGE_HP` (8) and `COLLISION_BUFFER_PX` (1) are `main.c`-local
+  `#define`s tuning this system — not yet exposed for per-enemy variation
+  (see "Behavior trees" above for the same "every enemy identical" gap on
+  the behavior side).
 
 ## Behavior trees (`src/behavior/`)
 
@@ -406,7 +468,10 @@ Markdown preview doesn't render Mermaid on its own).
 - **Fixed-point position/velocity**, not floats (no FPU on this CPU).
   `FIXED_POINT_POSITION_LENGTH = 4` (16 units/pixel). Position is `uint16_t`
   (unsigned, screen-space), Velocity is `int16_t` (signed, for direction).
-  Convert to real pixels only at render time (`fixed_point_to_pixel`).
+  Convert to real pixels only at render time (`fixed_point_to_pixel`) or
+  when a raw-pixel constant needs to enter fixed-point math
+  (`pixel_to_fixed_point`) — both public in `kinematics.h` (see "Collision /
+  combat" above).
 - **Screen/velocity coordinate convention**: +x = right, +y = **down** (not up —
   standard top-left-origin screen space, opposite of math/graph convention).
 - **`move_sprite()`/`move_metasprite_ex()`/`move_metasprite_flipx()` hardware
@@ -430,9 +495,10 @@ Markdown preview doesn't render Mermaid on its own).
   pointer; there's no fixed-size value to copy) and by design (shared,
   read-only data, not owned state). Functions still take pointers (`Player *`)
   when they need to mutate.
-- **`static` for file-local helpers** (e.g. `fixed_point_to_pixel`,
-  `build_input_state`) — not exposed in the header, since they're
-  implementation details of their `.c` file.
+- **`static` for file-local helpers** (e.g. `abs_diff`, `build_input_state`)
+  — not exposed in the header, since they're implementation details of
+  their `.c` file. (`fixed_point_to_pixel` used to be an example of this
+  but is now public — see "Collision / combat" above for why.)
 - Prefer designated initializers for structs: `Player p = { .position = ... };`.
 - `(void)` explicitly on zero-arg function signatures (C, not C++, semantics —
   empty `()` means "unspecified args," not "no args").
@@ -474,11 +540,15 @@ Markdown preview doesn't render Mermaid on its own).
   built before direction-facing existed and animated off velocity alone), and
   (3) `move_animated_metasprite_to_position` (or its caller) indexing
   `refs[animation_frame]` instead of the hardcoded `refs[0]`.
-- **No collision detection** — `apply_player_velocity`/`apply_enemy_velocity`
-  apply velocity unconditionally.
-  Planned approach (see Architecture above): candidate position → resolve
-  against world (per-axis, not combined, to allow wall-sliding) → commit →
-  sync sprite. Not yet implemented.
+- **Contact damage exists; movement-blocking collision doesn't.**
+  `apply_player_velocity`/`apply_enemy_velocity` still apply velocity
+  unconditionally — nothing stops the player and an enemy from overlapping,
+  or a future wall from being walked through. What exists today
+  (`process_player_enemy_collisions`, see "Collision / combat" above) only
+  detects overlap and deals damage; it doesn't resolve position. Planned
+  approach for the movement-blocking version (see Architecture above):
+  candidate position → resolve against world (per-axis, not combined, to
+  allow wall-sliding) → commit → sync sprite. Not yet implemented.
 - **`Metasprite`/`move_metasprite_to_position` (the non-directional,
   single-frame path) currently have no callers** — `Player` moved fully to
   `AnimatedMetasprite`. Kept intentionally for a future entity that's
@@ -490,12 +560,6 @@ Markdown preview doesn't render Mermaid on its own).
   inert** — correct and scoped per-entity (see "Metasprites" above), but has
   nothing to do until sprite counts actually vary frame-to-frame (animation,
   despawning, or variable entity counts).
-- **Nothing decrements `Player.hit_points` yet** — the HUD renders it, and
-  `INITIAL_PLAYER_HIT_POINT` is set, but there's no damage source (no
-  collision detection — see above) or any other path that changes it. (Note
-  `reset_player`/`reset_enemies` also don't reset `hit_points` back to
-  `INITIAL_PLAYER_HIT_POINT` on restart — moot for now since nothing changes
-  it, but worth remembering once something does.)
 
 ## SDCC/GBDK gotchas encountered (useful if debugging build warnings)
 

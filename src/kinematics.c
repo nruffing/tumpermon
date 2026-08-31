@@ -6,9 +6,14 @@
 
 #include "utils/tick_util.h"
 
-static uint8_t fixed_point_to_pixel(uint16_t value)
+uint8_t fixed_point_to_pixel(uint16_t value)
 {
     return value >> FIXED_POINT_POSITION_LENGTH;
+}
+
+uint16_t pixel_to_fixed_point(uint8_t pixel)
+{
+    return (uint16_t)pixel << FIXED_POINT_POSITION_LENGTH;
 }
 
 void move_sprite_to_position(uint8_t sprite_num, Position position)
@@ -122,6 +127,30 @@ uint16_t absolute_distance(Position a, Position b)
     uint16_t dx = abs_diff(a.x, b.x);
     uint16_t dy = abs_diff(a.y, b.y);
     return dx + dy;
+}
+
+bool aabb_overlaps(
+    Position a_position,
+    uint8_t a_width,
+    uint8_t a_height,
+    Position b_position,
+    uint8_t b_width,
+    uint8_t b_height,
+    uint8_t buffer_px)
+{
+    uint16_t a_width_fp = pixel_to_fixed_point(a_width);
+    uint16_t a_height_fp = pixel_to_fixed_point(a_height);
+    uint16_t b_width_fp = pixel_to_fixed_point(b_width);
+    uint16_t b_height_fp = pixel_to_fixed_point(b_height);
+    uint16_t buffer_fp = pixel_to_fixed_point(buffer_px);
+
+    // Inset both boxes by buffer_fp on every side, applied directly to the
+    // edge comparisons rather than shrinking width/height first, to avoid
+    // underflow if a box is narrower/shorter than 2 * buffer_px.
+    return a_position.x + buffer_fp < b_position.x + b_width_fp - buffer_fp &&
+           a_position.x + a_width_fp - buffer_fp > b_position.x + buffer_fp &&
+           a_position.y + buffer_fp < b_position.y + b_height_fp - buffer_fp &&
+           a_position.y + a_height_fp - buffer_fp > b_position.y + buffer_fp;
 }
 
 PositionDelta position_delta(Position a, Position b)

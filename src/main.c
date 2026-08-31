@@ -27,6 +27,8 @@
 #define STATUS_WINDOW_PADDING_PX 2
 
 #define ENEMY_COUNT 2
+#define ENEMY_DAMAGE_HP 8
+#define COLLISION_BUFFER_PX 1
 
 void initialize_player_sprite(void)
 {
@@ -88,6 +90,8 @@ void reset_player(Context *context)
     context->player->position.x = INITIAL_PLAYER_POSITION_X;
     context->player->position.y = INITIAL_PLAYER_POSITION_Y;
     context->player->direction = INITIAL_PLAYER_DIRECTION;
+    context->player->hit_points = INITIAL_PLAYER_HIT_POINTS;
+    context->player->previous_frame = create_initial_player_previous_frame();
     update_player_sprite(context->player);
 }
 
@@ -186,6 +190,7 @@ void handle_menu(Context *context)
         select_menu_item(previous_index, context->menu->selected_index);
     } else if (context->joypad_state.a.is_just_pressed) {
         handle_menu_item_select(context);
+        return;
     }
 
     blink_menu_cursor(context->menu->selected_index, context->tick);
@@ -199,6 +204,30 @@ void process_enemies(Context *context)
         enemy->behavior_tree->tick(enemy->behavior_tree, &node_context);
         apply_enemy_velocity(enemy);
         update_enemy_sprite(enemy);
+    }
+}
+
+void process_player_enemy_collisions(Context *context)
+{
+    for (uint8_t i = 0; i < context->enemy_count; i++) {
+        Enemy *enemy = &context->enemies[i];
+        if (aabb_overlaps(
+                get_player_sprite_top_left_position(context->player),
+                PLAYER_SPRITE_WIDTH_PX,
+                PLAYER_SPRITE_HEIGHT_PX,
+                enemy->position,
+                ENEMY_SPRITE_WIDTH_PX,
+                ENEMY_SPRITE_HEIGHT_PX,
+                COLLISION_BUFFER_PX)) {
+            if (!enemy->collision.is_collided) {
+                apply_player_damage(context->player, ENEMY_DAMAGE_HP);
+                enemy->collision.is_collided = true;
+                enemy->collision.collided_at_tick = context->tick;
+            }
+        } else {
+            enemy->collision.is_collided = false;
+            enemy->collision.collided_at_tick = 0;
+        }
     }
 }
 
@@ -219,7 +248,7 @@ void process_frame(Context *context)
     update_player_sprite(context->player);
 
     process_enemies(context);
-
+    process_player_enemy_collisions(context);
     update_status_menu(context, false);
 
     update_player_previous_frame_state(context->player);
