@@ -243,6 +243,10 @@ void process_frame(Context *context)
         return;
     }
 
+    if (context->player->hit_points == 0) {
+        return;
+    }
+
     Velocity velocity = compute_velocity_from_joypad(&context->joypad_state, context->kinematics);
     apply_player_velocity(context->player, velocity);
     update_player_sprite(context->player);
